@@ -20,11 +20,16 @@ import { Markdown } from "tiptap-markdown";
 import { common, createLowlight } from "lowlight";
 
 import { Toolbar } from "./toolbar";
+import { ConflictBanner } from "./conflict-banner";
+import { WsClient, type ConnectionStatus } from "./ws-client";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
 import { useToast } from "@/components/ui/toast";
 
 const lowlight = createLowlight(common);
+
+// Debounce interval for auto-saves (ms).
+const SAVE_DEBOUNCE_MS = 400;
 
 interface SaveStatus {
   state: "idle" | "saving" | "saved" | "error";
@@ -39,10 +44,19 @@ interface EditorProps {
 export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const [etag, setEtag] = useState(initialEtag);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: "saved" });
-  const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [conflict, setConflict] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("offline");
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
+
+  // Track if we should keep our edits after a conflict.
+  const keepMineRef = useRef(false);
+  // Debounce timer ref.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Current content for comparison.
+  const currentContentRef = useRef(initialContent);
 
   const editor = useEditor({
     extensions: [
@@ -83,13 +97,27 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     ],
     content: initialContent || undefined,
     onUpdate: () => {
+      if (!editor) return;
+      const storage = editor.storage as unknown as Record<string, unknown>;
+      const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+      currentContentRef.current = markdown;
+
+      // Mark as dirty only if content actually changed.
+      setDirty(markdown !== currentContentRef.current || saveStatus.state === "idle");
+
       if (saveStatus.state !== "saving") {
         setSaveStatus({ state: "idle" });
       }
+
+      // Debounced auto-save.
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        performSave();
+      }, SAVE_DEBOUNCE_MS);
     },
   });
 
-  // Track mouse position via ref for CSS-based visibility
+  // Track mouse position via ref for CSS-based visibility.
   const mouseOverTableOrMenu = useRef(false);
 
   useEffect(() => {
@@ -99,24 +127,57 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       const menu = document.querySelector('[data-table-bubble-menu]');
       const inMenu = menu ? menu.contains(target) || target === menu : false;
       mouseOverTableOrMenu.current = inTable || inMenu;
-      
-      // Use class on body to survive React re-renders
-      document.body.classList.toggle('table-menu-visible', inTable || inMenu);
+      document.body.classList.toggle("table-menu-visible", inTable || inMenu);
     }
 
     document.addEventListener("mousemove", handleGlobalMouseMove);
     return () => document.removeEventListener("mousemove", handleGlobalMouseMove);
   }, []);
 
-  const handleSave = useCallback(async () => {
+  // Force-flush on editor blur.
+  useEffect(() => {
+    editor?.on("blur", () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      performSave();
+    });
+  }, [editor]);
+
+  // Force-flush on beforeunload.
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (dirty) {
+        // Try to save via sendBeacon if dirty.
+        const storage = editor?.storage as unknown as Record<string, unknown>;
+        if (storage) {
+          const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+          const data = JSON.stringify({ content: markdown, ifMatch: etag });
+          navigator.sendBeacon(`/api/documents/${id}`, data);
+        }
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [editor, id, etag, dirty]);
+
+  const performSave = useCallback(async () => {
     if (!editor) return;
 
+    const storage = editor.storage as unknown as Record<string, unknown>;
+    const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+
+    // Skip save if content hasn't changed.
+    if (markdown === currentContentRef.current && saveStatus.state === "saved") {
+      return;
+    }
+
     setSaveStatus({ state: "saving" });
-    setError(null);
 
     try {
-      const storage = editor.storage as unknown as Record<string, unknown>;
-      const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
       const res = await fetch(`/api/documents/${id}`, {
         method: "PUT",
         headers: {
@@ -128,7 +189,27 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
 
       if (res.status === 409) {
         const data = await res.json();
-        setError(data.error || "Document was modified by another writer");
+        if (keepMineRef.current) {
+          // Overwrite remote changes with local edits.
+          const retryRes = await fetch(`/api/documents/${id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "If-Match": data.etag,
+            },
+            body: JSON.stringify({ content: markdown }),
+          });
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            setEtag(retryData.etag);
+            setSaveStatus({ state: "saved" });
+            setDirty(false);
+            currentContentRef.current = markdown;
+            keepMineRef.current = false;
+            return;
+          }
+        }
+        setConflict(data.error || "Document was modified by another writer");
         setSaveStatus({ state: "error" });
         return;
       }
@@ -138,11 +219,20 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       const data = await res.json();
       setEtag(data.etag);
       setSaveStatus({ state: "saved" });
+      setDirty(false);
+      currentContentRef.current = markdown;
     } catch {
-      setError("Failed to save document");
       setSaveStatus({ state: "error" });
     }
-  }, [editor, id, etag]);
+  }, [editor, id, etag, saveStatus.state]);
+
+  const handleSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    performSave();
+  }, [performSave]);
 
   const handleExportPdf = useCallback(async () => {
     setExporting(true);
@@ -168,7 +258,49 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     }
   }, [id, showToast]);
 
-  // Table action handlers
+  // WebSocket client for real-time sync.
+  useEffect(() => {
+    const client = new WsClient({
+      docId: id,
+      callbacks: {
+        onDocChanged: async (event) => {
+          // Skip events from this client (origin is "server-watcher", not us).
+          if (event.origin === "server-watcher" && dirty) {
+            // Show conflict banner if we have unsaved changes.
+            setConflict("This document was changed elsewhere.");
+            return;
+          }
+
+          // If not dirty, apply the changes seamlessly.
+          if (!dirty) {
+            try {
+              const res = await fetch(`/api/documents/${id}`);
+              if (res.ok) {
+                const data = await res.json();
+                setEtag(data.etag);
+                // Update editor content.
+                editor?.commands.setContent(data.content);
+                currentContentRef.current = data.content;
+                setSaveStatus({ state: "saved" });
+              }
+            } catch {
+              // Ignore fetch errors.
+            }
+          }
+        },
+        onStatusChange: (status) => {
+          setConnectionStatus(status);
+        },
+      },
+    });
+
+    client.connect();
+    return () => {
+      client.disconnect();
+    };
+  }, [id, editor, dirty]);
+
+  // Table action handlers.
   const handleAddRowAbove = useCallback(() => {
     editor?.commands.addRowBefore();
   }, [editor]);
@@ -197,6 +329,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     editor?.commands.deleteTable();
   }, [editor]);
 
+  // Status indicators per ui-design.md §6.8.
   const saveIndicator = (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -231,6 +364,34 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     </span>
   );
 
+  const connectionIndicator = (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+        connectionStatus === "connected"
+          ? "text-success"
+          : connectionStatus === "reconnecting"
+            ? "text-warning"
+            : "text-text-subtle"
+      }`}
+      aria-live="polite"
+    >
+      <span
+        className={`inline-block h-2 w-2 rounded-full ${
+          connectionStatus === "connected"
+            ? "bg-success"
+            : connectionStatus === "reconnecting"
+              ? "animate-pulse bg-warning"
+              : "bg-text-subtle"
+        }`}
+      />
+      {connectionStatus === "connected"
+        ? "Live"
+        : connectionStatus === "reconnecting"
+          ? "Reconnecting…"
+          : "Offline"}
+    </span>
+  );
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Editor topbar */}
@@ -249,6 +410,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
         </div>
         <div className="flex items-center gap-3">
           {saveIndicator}
+          {connectionIndicator}
           <ThemeToggle current={theme} onToggle={toggleTheme} />
           <button
             onClick={handleSave}
@@ -265,19 +427,35 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
         </div>
       </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="flex items-center justify-between gap-4 border-b border-warning/20 bg-warning/5 px-4 py-3 text-sm text-warning"
-        >
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="shrink-0 text-warning/70 hover:text-warning focus-visible:rounded focus-visible:ring-2 focus-visible:ring-warning/35"
-          >
-            Dismiss
-          </button>
-        </div>
+      {/* Conflict banner */}
+      {conflict && (
+        <ConflictBanner
+          onReload={async () => {
+            try {
+              const res = await fetch(`/api/documents/${id}`);
+              if (res.ok) {
+                const data = await res.json();
+                setEtag(data.etag);
+                editor?.commands.setContent(data.content);
+                currentContentRef.current = data.content;
+                setSaveStatus({ state: "saved" });
+                setDirty(false);
+              }
+            } catch {
+              // Ignore.
+            } finally {
+              setConflict(null);
+              keepMineRef.current = false;
+            }
+          }}
+          onKeepMine={() => {
+            keepMineRef.current = true;
+            setConflict(null);
+          }}
+          onDismiss={() => {
+            setConflict(null);
+          }}
+        />
       )}
 
       {/* Toolbar */}
