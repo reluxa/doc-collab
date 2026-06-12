@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -85,6 +85,25 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       }
     },
   });
+
+  // Direct DOM control of bubble menu visibility based on mouse position
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleGlobalMouseMove(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      const inTable = !!target.closest(".ProseMirror table");
+      
+      // Directly set visibility on the bubble menu element
+      const menu = document.querySelector('[data-table-bubble-menu]');
+      if (menu) {
+        (menu as HTMLElement).style.visibility = inTable ? 'visible' : 'hidden';
+      }
+    }
+
+    document.addEventListener("mousemove", handleGlobalMouseMove);
+    return () => document.removeEventListener("mousemove", handleGlobalMouseMove);
+  }, []);
 
   const handleSave = useCallback(async () => {
     if (!editor) return;
@@ -241,13 +260,8 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       {editor && (
         <BubbleMenu className="flex items-center gap-1 rounded-lg border border-border bg-surface px-1 py-1 shadow-lg"
           editor={editor}
-          shouldShow={({ editor: ed, state, oldState }) => {
-            // Hide if not in table at all
-            if (!ed.isActive("table")) return false;
-            // Hide on blur (clicking outside the editor)
-            if (oldState && state === oldState) return false;
-            return true;
-          }}
+          shouldShow={() => editor?.isActive("table") ?? false}
+          data-table-bubble-menu=""
         >
           <div className="flex items-center gap-1">
             <button type="button" onClick={handleAddRowAbove} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-text hover:bg-surface-2" aria-label="Add row above">
