@@ -46,19 +46,21 @@ export default function HomePage() {
   return (
     <div className="flex flex-1 flex-col">
       {/* Topbar */}
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-surface px-4">
+      <header className="glass-bar sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-brand-500">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          <span className="text-sm font-semibold text-text">doc-collab</span>
+          <span className="accent-bar flex h-7 w-7 items-center justify-center rounded-lg text-white shadow-[0_4px_10px_-2px_rgba(99,102,241,.5)]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </span>
+          <span className="gradient-text text-sm font-bold tracking-tight">doc-collab</span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle current={theme} onToggle={toggleTheme} />
           <button
             onClick={() => setShowNewDoc(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white transition-colors hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+            className="btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-brand-500/35"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5v14" />
@@ -69,11 +71,19 @@ export default function HomePage() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 bg-bg p-6">
-        <DocumentList
-          onCreate={() => setShowNewDoc(true)}
-          onDeleted={() => showToast("success", "Document deleted")}
-        />
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto max-w-[1400px]">
+          <div className="mb-5 flex items-end justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-text">Documents</h1>
+              <p className="mt-0.5 text-sm text-text-muted">Your collaborative workspace</p>
+            </div>
+          </div>
+          <DocumentList
+            onCreate={() => setShowNewDoc(true)}
+            onDeleted={() => showToast("success", "Document deleted")}
+          />
+        </div>
       </main>
 
       {/* New document dialog */}
@@ -85,7 +95,7 @@ export default function HomePage() {
           aria-modal="true"
           aria-label="New document"
         >
-          <div className="w-full max-w-[480px] rounded-lg bg-surface p-6 shadow-[0_20px_48px_rgba(15,23,42,.24)]">
+          <div className="animate-fade-up w-full max-w-[480px] rounded-lg border border-border bg-surface p-6 shadow-[0_20px_48px_rgba(15,23,42,.24)]">
             <h2 className="text-lg font-semibold text-text">New document</h2>
             <p className="mt-1 text-sm text-text-muted">Enter a name for your document.</p>
             <form
@@ -122,7 +132,7 @@ export default function HomePage() {
                 <button
                   type="submit"
                   disabled={creating || !newDocId.trim()}
-                  className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+                  className="btn-primary rounded-md px-4 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-brand-500/35"
                 >
                   {creating ? "Creating…" : "Create"}
                 </button>

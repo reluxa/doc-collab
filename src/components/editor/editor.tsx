@@ -63,6 +63,10 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       StarterKit.configure({
         undoRedo: false,
         codeBlock: false,
+        // Provided explicitly below with custom config — disable the
+        // StarterKit-bundled versions to avoid duplicate extension names.
+        link: false,
+        underline: false,
       }),
       Markdown.configure({
         tightLists: true,
@@ -95,6 +99,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       TableHeader,
       TableCell,
     ],
+    // The editor is hydrated on the client; rendering immediately would
+    // cause an SSR hydration mismatch.
+    immediatelyRender: false,
     content: initialContent || undefined,
     onUpdate: () => {
       if (!editor) return;
@@ -410,7 +417,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Editor topbar */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
+      <div className="glass-bar flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -430,7 +437,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           <button
             onClick={handleSave}
             disabled={saveStatus.state === "saving"}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+            className="btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-brand-500/35"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
@@ -520,8 +527,8 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
 
       {/* Editor surface */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[760px] px-4 py-8 sm:px-8">
-          <div className="rounded-md bg-surface px-6 py-12 shadow-[0_1px_2px_rgba(15,23,42,.06),0_1px_3px_rgba(15,23,42,.10)] sm:px-12">
+        <div className="mx-auto max-w-[768px] px-4 py-10 sm:px-8">
+          <div className="doc-sheet animate-fade-up rounded-xl px-6 py-12 sm:px-14 sm:py-16">
             <style>{`
               .ProseMirror {
                 border: none !important;

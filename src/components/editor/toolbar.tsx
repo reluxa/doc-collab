@@ -245,7 +245,7 @@ export function Toolbar({ editor, onExportPdf, exportPdfLoading }: ToolbarProps)
         <button
           onClick={onExportPdf}
           disabled={exportPdfLoading}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+          className="btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium focus-visible:ring-2 focus-visible:ring-brand-500/35"
           title="Export PDF"
           aria-label="Export PDF"
         >

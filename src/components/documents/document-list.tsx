@@ -90,7 +90,7 @@ export function DocumentList({
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-brand-500">
+          <div className="accent-bar mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-[0_10px_24px_-6px_rgba(99,102,241,.55)]">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
               <polyline points="14 2 14 8 20 8" />
@@ -100,7 +100,7 @@ export function DocumentList({
           <p className="mt-1 text-text-muted">Create your first document to get started.</p>
           <button
             onClick={onCreate}
-            className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+            className="btn-primary mt-4 inline-flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium focus-visible:ring-2 focus-visible:ring-brand-500/35"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5v14" />
@@ -115,19 +115,20 @@ export function DocumentList({
   return (
     <>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {docs.map((doc) => (
+        {docs.map((doc, i) => (
           <Link
             key={doc.id}
             href={`/editor/${doc.id}`}
-            className="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-100 hover:shadow-[0_4px_12px_rgba(99,102,241,.10),0_1px_3px_rgba(15,23,42,.08)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
+            style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+            className="group animate-fade-up relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[var(--shadow-e1)] transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[0_12px_28px_-8px_rgba(99,102,241,.30)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
           >
             {/* Top accent bar */}
-            <div className="h-[3px] w-full bg-gradient-to-r from-brand-500 to-brand-300 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <div className="accent-bar h-[3px] w-full opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
 
             <div className="flex flex-1 flex-col p-5">
               {/* Icon + Title */}
               <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-500 transition-colors duration-200 group-hover:bg-brand-100">
+                <div className="accent-bar flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-white shadow-[0_6px_14px_-4px_rgba(99,102,241,.5)] transition-transform duration-200 group-hover:scale-105">
                   <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
                     <polyline points="14 2 14 8 20 8" />
