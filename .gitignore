@@ -16,7 +16,7 @@ build/
 .env.*.local
 
 # Documents (user content)
-documents/
+/documents/
 
 # Tests
 cypress/screenshots/
