@@ -289,6 +289,10 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
               const res = await fetch(`/api/documents/${id}`);
               if (res.ok) {
                 const data = await res.json();
+                // Skip setContent when content hasn't actually changed.
+                // setContent rebuilds the ProseMirror doc tree which resets
+                // the cursor selection — avoid it when the content is the same.
+                if (data.content === currentContentRef.current) return;
                 currentContentRef.current = data.content;
                 setEtag(data.etag);
                 currentEditor?.commands.setContent(data.content);
