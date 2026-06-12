@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
-      <body className="min-h-dvh flex flex-col antialiased">
+      <body className="h-dvh overflow-hidden flex flex-col antialiased">
         {/* Server-rendered config for the browser WS client. */}
         <script
           dangerouslySetInnerHTML={{
