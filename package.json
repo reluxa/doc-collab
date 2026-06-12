@@ -6,14 +6,18 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "tsx server.ts --dev",
-    "build": "next build",
-    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts --dev",
+    "dev:mcp": "tsx watch mcp-server/server.ts",
+    "dev:all": "concurrently -n web,mcp -c blue,magenta \"npm:dev\" \"npm:dev:mcp\"",
+    "build": "next build && npm run build:server && npm run build:mcp",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:mcp": "tsc -p tsconfig.mcp.json",
+    "start": "NODE_ENV=production node dist/server.js",
+    "start:mcp": "NODE_ENV=production node dist/mcp-server/mcp-server/server.js",
     "lint": "eslint",
     "test": "vitest run",
     "cypress": "cypress run --headed false",
-    "cypress:open": "cypress open",
-    "mcp": "npx tsx mcp-server/server.ts"
+    "cypress:open": "cypress open"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -55,6 +59,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.8",
+    "concurrently": "^10.0.3",
     "cypress": "^15.17.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",

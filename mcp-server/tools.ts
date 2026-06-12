@@ -15,7 +15,7 @@ import {
   writeDocument,
   deleteDocument,
   NotFoundError,
-} from "@/lib/documents";
+} from "../src/lib/documents";
 
 // ---------------------------------------------------------------------------
 // Resource URI scheme: doc:///<id>

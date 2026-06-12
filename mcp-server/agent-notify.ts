@@ -12,7 +12,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import path from "node:path";
 
-import { DOCS_ROOT } from "@/lib/config";
+import { DOCS_ROOT } from "../src/lib/config";
 
 // ---------------------------------------------------------------------------
 // Watcher setup
