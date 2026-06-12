@@ -32,6 +32,22 @@ async function main(): Promise<void> {
   setupAgentNotifier(server);
 
   const transport = new StdioServerTransport();
+
+  // Log JSON parse / protocol errors so malformed client requests
+  // don't disappear silently. Suppress noisy Zod validation errors
+  // that are already covered by the underlying JSON parse failure.
+  transport.onerror = (err: unknown) => {
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : String(err);
+    if (!msg.includes("invalid_union")) {
+      console.error(`[mcp-transport] Error: ${msg}`);
+    }
+  };
+
   await server.connect(transport);
 
   // Keep the process alive.
