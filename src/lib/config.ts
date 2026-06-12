@@ -14,7 +14,7 @@ export const DOCS_ROOT = path.resolve(
 export const HOST = process.env.HOST ?? "127.0.0.1";
 
 /** Server port. */
-export const PORT = Number(process.env.PORT) ?? 3000;
+export const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
 /** Shared token guarding WebSocket upgrades. Generated once at startup. */
 export const WS_TOKEN =

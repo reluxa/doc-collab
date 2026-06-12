@@ -6,9 +6,9 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsx server.ts --dev",
     "build": "next build",
-    "start": "next start",
+    "start": "tsx server.ts",
     "lint": "eslint",
     "test": "vitest run",
     "cypress": "cypress run --headed false",
@@ -30,6 +30,7 @@
     "@tiptap/extension-underline": "^3.26.1",
     "@tiptap/react": "^3.26.1",
     "@tiptap/starter-kit": "^3.26.1",
+    "chokidar": "^5.0.0",
     "highlight.js": "^11.11.1",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.17.0",
@@ -42,6 +43,7 @@
     "remark-stringify": "^11.0.0",
     "tiptap-markdown": "^0.9.0",
     "unified": "^11.0.5",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -54,6 +56,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.8"
   }
