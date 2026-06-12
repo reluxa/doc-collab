@@ -50,3 +50,5 @@ tsconfig.tsbuildinfo
 
 # Cypress cache
 cypress/fixtures/
+cypress/downloads/
+a.out
