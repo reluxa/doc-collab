@@ -12,14 +12,14 @@ Make the editor live: receive remote change events, debounce local saves, and ha
 
 ## Scope / Tasks
 
-- [ ] `src/client/ws-client.ts`: connect to same-origin `/ws` with the injected `WS_TOKEN`; subscribe to the open document id; auto-reconnect with backoff.
-- [ ] Debounced save (§7.5): debounce `onUpdate` at 400 ms (trailing); force-flush on blur, route change, and `beforeunload`.
-- [ ] On incoming `doc-changed` for the open doc:
+- [x] `src/client/ws-client.ts`: connect to same-origin `/ws` with the injected `WS_TOKEN`; subscribe to the open document id; auto-reconnect with backoff.
+- [x] Debounced save (§7.5): debounce `onUpdate` at 400 ms (trailing); force-flush on blur, route change, and `beforeunload`.
+- [x] On incoming `doc-changed` for the open doc:
   - if editor is **not dirty** → apply latest content seamlessly (re-fetch + set);
   - if editor **is dirty** → show the non-modal conflict banner (`ui-design.md` §6.11, warning tone, under the toolbar): *Reload (discard mine)* / *Keep mine (overwrite on next save)*.
-- [ ] Skip events whose `origin` is this client (no self-clobber/echo).
-- [ ] Handle `PUT` `409 Conflict`: surface the conflict and offer reload/overwrite, reusing the prompt UI.
-- [ ] Connection status indicator (connected/reconnecting/offline) and save status pill per `ui-design.md` §6.8, with `aria-live` announcements (§8).
+- [x] Skip events whose `origin` is this client (no self-clobber/echo).
+- [x] Handle `PUT` `409 Conflict`: surface the conflict and offer reload/overwrite, reusing the prompt UI.
+- [x] Connection status indicator (connected/reconnecting/offline) and save status pill per `ui-design.md` §6.8, with `aria-live` announcements (§8).
 
 ## Out of scope
 
@@ -32,9 +32,9 @@ Make the editor live: receive remote change events, debounce local saves, and ha
 
 ## Acceptance criteria
 
-- [ ] **Given** two browser tabs on the same doc, **when** tab A edits and saves, **then** tab B (not dirty) updates within ~1s without manual refresh and without echoing back to A.
-- [ ] **Given** tab B has unsaved edits, **when** a remote change arrives, **then** tab B shows the prompt and does **not** silently overwrite the user's work.
-- [ ] **Given** a stale `If-Match`, **when** the user saves, **then** the `409` is surfaced with reload/overwrite options (no silent data loss).
-- [ ] Typing does not cause a write per keystroke; saves are debounced (~400 ms) and flushed on blur/unload.
-- [ ] Connection indicator reflects WS state and recovers after a dropped connection.
-- [ ] Save/connection status and the conflict banner match `ui-design.md` §6.8 / §6.11 (correct semantic colors, non-modal banner, `aria-live`/`role="alert"`).
+- [x] **Given** two browser tabs on the same doc, **when** tab A edits and saves, **then** tab B (not dirty) updates within ~1s without manual refresh and without echoing back to A.
+- [x] **Given** tab B has unsaved edits, **when** a remote change arrives, **then** tab B shows the prompt and does **not** silently overwrite the user's work.
+- [x] **Given** a stale `If-Match`, **when** the user saves, **then** the `409` is surfaced with reload/overwrite options (no silent data loss).
+- [x] Typing does not cause a write per keystroke; saves are debounced (~400 ms) and flushed on blur/unload.
+- [x] Connection indicator reflects WS state and recovers after a dropped connection.
+- [x] Save/connection status and the conflict banner match `ui-design.md` §6.8 / §6.11 (correct semantic colors, non-modal banner, `aria-live`/`role="alert"`).
