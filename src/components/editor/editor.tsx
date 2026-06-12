@@ -87,18 +87,18 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   });
 
   // Direct DOM control of bubble menu visibility based on mouse position
-  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleGlobalMouseMove(e: MouseEvent) {
       const target = e.target as HTMLElement;
-      const inTable = !!target.closest(".ProseMirror table");
-      
-      // Directly set visibility on the bubble menu element
       const menu = document.querySelector('[data-table-bubble-menu]');
-      if (menu) {
-        (menu as HTMLElement).style.visibility = inTable ? 'visible' : 'hidden';
-      }
+      if (!menu) return;
+      
+      // Keep menu visible if mouse is over the table OR over the menu itself
+      const inTable = !!target.closest(".ProseMirror table");
+      const inMenu = menu.contains(target) || target === menu;
+      
+      (menu as HTMLElement).style.visibility = (inTable || inMenu) ? 'visible' : 'hidden';
     }
 
     document.addEventListener("mousemove", handleGlobalMouseMove);
