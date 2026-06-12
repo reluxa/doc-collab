@@ -137,9 +137,6 @@ export function DocumentList({
                   <h3 className="truncate text-base font-semibold leading-tight text-text group-hover:text-brand-600">
                     {doc.title}
                   </h3>
-                  <p className="mt-0.5 truncate text-xs text-text-subtle">
-                    {doc.id}
-                  </p>
                 </div>
               </div>
 
