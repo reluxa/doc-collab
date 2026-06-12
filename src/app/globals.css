@@ -331,3 +331,12 @@ body {
   background: var(--color-border);
   margin: 4px 0;
 }
+
+/* Table bubble menu: controlled by CSS class on body from mousemove handler */
+[data-table-bubble-menu] {
+  visibility: hidden !important;
+}
+body.table-menu-visible [data-table-bubble-menu] {
+  visibility: visible !important;
+}
+
