@@ -1,18 +1,15 @@
 
 import Link from "next/link";
 import { Editor } from "@/components/editor/editor";
+import { readDocument, NotFoundError } from "@/lib/documents";
 import type { DocumentContent } from "@/types/document";
 
 async function fetchDocument(id: string): Promise<DocumentContent | null> {
   try {
-    const res = await fetch(`http://localhost:3000/api/documents/${id}`, {
-      next: { revalidate: 0 },
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
+    return await readDocument(id);
+  } catch (err) {
+    if (err instanceof NotFoundError) return null;
+    throw err;
   }
 }
 
