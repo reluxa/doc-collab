@@ -241,7 +241,13 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       {editor && (
         <BubbleMenu className="flex items-center gap-1 rounded-lg border border-border bg-surface px-1 py-1 shadow-lg"
           editor={editor}
-          shouldShow={({ editor: ed }) => ed.isActive("table")}
+          shouldShow={({ editor: ed, state, oldState }) => {
+            // Hide if not in table at all
+            if (!ed.isActive("table")) return false;
+            // Hide on blur (clicking outside the editor)
+            if (oldState && state === oldState) return false;
+            return true;
+          }}
         >
           <div className="flex items-center gap-1">
             <button type="button" onClick={handleAddRowAbove} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-text hover:bg-surface-2" aria-label="Add row above">
