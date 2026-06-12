@@ -234,3 +234,45 @@ describe("API: DELETE /api/documents/[id]", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("API: GET /api/documents/[id]/pdf", () => {
+  it("returns a valid PDF for an existing document", async () => {
+    // Create a document with mixed content.
+    await fetch(`${BASE}/api/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "api-pdf-test",
+        content:
+          "# PDF Test Doc\n\n## Section\n\nSome **bold** text and a [link](https://example.com).\n\n- Item 1\n- Item 2",
+      }),
+    });
+
+    const res = await fetch(`${BASE}/api/documents/api-pdf-test/pdf`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    expect(res.headers.get("Content-Disposition")).toContain("api-pdf-test.pdf");
+
+    // Verify PDF magic number.
+    const buffer = await res.arrayBuffer();
+    const header = new TextDecoder().decode(
+      new Uint8Array(buffer).slice(0, 5),
+    );
+    expect(header).toBe("%PDF-");
+
+    // Cleanup.
+    await fetch(`${BASE}/api/documents/api-pdf-test`, { method: "DELETE" });
+  });
+
+  it("returns 404 for nonexistent document", async () => {
+    const res = await fetch(`${BASE}/api/documents/no-such-doc-xyz/pdf`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for path traversal id", async () => {
+    const res = await fetch(
+      `${BASE}/api/documents/..%2F..%2Fetc%2Fpasswd/pdf`,
+    );
+    expect(res.status).toBe(400);
+  });
+});

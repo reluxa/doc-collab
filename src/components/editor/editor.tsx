@@ -22,6 +22,7 @@ import { common, createLowlight } from "lowlight";
 import { Toolbar } from "./toolbar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
+import { useToast } from "@/components/ui/toast";
 
 const lowlight = createLowlight(common);
 
@@ -39,7 +40,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const [etag, setEtag] = useState(initialEtag);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: "saved" });
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { showToast } = useToast();
 
   const editor = useEditor({
     extensions: [
@@ -140,6 +143,30 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       setSaveStatus({ state: "error" });
     }
   }, [editor, id, etag]);
+
+  const handleExportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/documents/${id}/pdf`);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast("success", "Export ready");
+    } catch {
+      showToast("error", "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }, [id, showToast]);
 
   // Table action handlers
   const handleAddRowAbove = useCallback(() => {
@@ -254,7 +281,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       )}
 
       {/* Toolbar */}
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} onExportPdf={handleExportPdf} exportPdfLoading={exporting} />
 
       {/* Table bubble menu */}
       {editor && (

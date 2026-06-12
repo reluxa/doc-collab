@@ -4,6 +4,8 @@ import type { Editor } from "@tiptap/react";
 
 interface ToolbarProps {
   editor: Editor | null;
+  onExportPdf?: () => void;
+  exportPdfLoading?: boolean;
 }
 
 function Toggle({
@@ -39,7 +41,7 @@ function Separator() {
   return <div className="mx-1 h-5 w-px bg-border" />;
 }
 
-export function Toolbar({ editor }: ToolbarProps) {
+export function Toolbar({ editor, onExportPdf, exportPdfLoading }: ToolbarProps) {
   if (!editor) return null;
 
   return (
@@ -235,6 +237,32 @@ export function Toolbar({ editor }: ToolbarProps) {
           <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
         </svg>
       </Toggle>
+
+      <div className="ml-auto" />
+
+      {/* Export PDF */}
+      {onExportPdf && (
+        <button
+          onClick={onExportPdf}
+          disabled={exportPdfLoading}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 text-xs font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-brand-500/35"
+          title="Export PDF"
+          aria-label="Export PDF"
+        >
+          {exportPdfLoading ? (
+            <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
+          {exportPdfLoading ? "Rendering…" : "Export PDF"}
+        </button>
+      )}
     </div>
   );
 }

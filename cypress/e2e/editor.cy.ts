@@ -159,6 +159,16 @@ describe("Editor toolbar", () => {
       expect(resp.body.content).to.contain("New paragraph");
     });
   });
+
+  // -- PDF Export --
+
+  it("exports PDF and shows success toast", () => {
+    // Click the Export PDF button.
+    cy.get('button[aria-label="Export PDF"]').click();
+
+    // Wait for the toast to appear.
+    cy.contains("Export ready").should("be.visible");
+  });
 });
 
 describe("Document list", () => {
