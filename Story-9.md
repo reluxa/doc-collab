@@ -11,14 +11,14 @@ Provide a standalone MCP server (stdio) that the openclaw agent connects to, exp
 
 ## Scope / Tasks
 
-- [ ] `mcp-server/server.ts`: MCP server over stdio using `@modelcontextprotocol/sdk`.
-- [ ] `mcp-server/tools.ts`: implement tools delegating to `lib/documents.ts`:
+- [x] `mcp-server/server.ts`: MCP server over stdio using `@modelcontextprotocol/sdk`.
+- [x] `mcp-server/tools.ts`: implement tools delegating to `lib/documents.ts`:
   - `list_documents`, `read_document(name)` (returns content + version), `create_document(name, content)`, `update_document(name, content, expected_version?)`, `delete_document(name)`.
   - `update_document` honors optional `expected_version` (conflict error if stale); omitting it is logged last-write-wins.
-- [ ] Declare the `resources` capability with `subscribe: true` and expose each document as an MCP resource (`uri` like `doc:///<id>` or `file://…`).
-- [ ] `mcp-server/agent-notify.ts`: chokidar watcher over `DOCS_ROOT`; on change, send `notifications/resources/updated` (with the resource `uri`) for resources the client has **subscribed** to via `resources/subscribe`.
-- [ ] Reuse `resolveDocPath` so `name` gets identical ID validation + traversal protection.
-- [ ] Tests for tool argument validation and traversal rejection.
+- [x] Declare the `resources` capability with `subscribe: true` and expose each document as an MCP resource (`uri` like `doc:///<id>` or `file://…`).
+- [x] `mcp-server/agent-notify.ts`: chokidar watcher over `DOCS_ROOT`; on change, send `notifications/resources/updated` (with the resource `uri`) for resources the client has **subscribed** to via `resources/subscribe`.
+- [x] Reuse `resolveDocPath` so `name` gets identical ID validation + traversal protection.
+- [x] Tests for tool argument validation and traversal rejection.
 
 ## Out of scope
 
@@ -32,9 +32,9 @@ Provide a standalone MCP server (stdio) that the openclaw agent connects to, exp
 
 ## Acceptance criteria
 
-- [ ] **Given** the agent connected over stdio, **when** it calls each tool, **then** the tool performs the documented filesystem operation and returns the expected result/metadata.
-- [ ] **Given** a `name` of `../../secret`, **when** any tool is called, **then** it is rejected (traversal-safe), never touching files outside `DOCS_ROOT`.
-- [ ] **Given** `update_document` with a stale `expected_version`, **then** it returns a conflict error rather than overwriting.
-- [ ] **Given** the agent has subscribed to a document resource, **when** that `.md` file is changed by the web app, **then** the agent receives a `notifications/resources/updated` signal for the correct `uri`.
-- [ ] **Given** a document is created or deleted, **then** the agent receives `notifications/resources/list_changed`.
-- [ ] Tool validation tests pass.
+- [x] **Given** the agent connected over stdio, **when** it calls each tool, **then** the tool performs the documented filesystem operation and returns the expected result/metadata.
+- [x] **Given** a `name` of `../../secret`, **when** any tool is called, **then** it is rejected (traversal-safe), never touching files outside `DOCS_ROOT`.
+- [x] **Given** `update_document` with a stale `expected_version`, **then** it returns a conflict error rather than overwriting.
+- [x] **Given** the agent has subscribed to a document resource, **when** that `.md` file is changed by the web app, **then** the agent receives a `notifications/resources/updated` signal for the correct `uri`.
+- [x] **Given** a document is created or deleted, **then** the agent receives `notifications/resources/list_changed`.
+- [x] Tool validation tests pass.
