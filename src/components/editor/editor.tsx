@@ -100,10 +100,13 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       if (!editor) return;
       const storage = editor.storage as unknown as Record<string, unknown>;
       const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
-      currentContentRef.current = markdown;
 
-      // Mark as dirty only if content actually changed.
-      setDirty(markdown !== currentContentRef.current || saveStatus.state === "idle");
+      // Mark as dirty if content differs from last saved content.
+      const prevContent = currentContentRef.current;
+      if (markdown !== prevContent) {
+        setDirty(true);
+        currentContentRef.current = markdown;
+      }
 
       if (saveStatus.state !== "saving") {
         setSaveStatus({ state: "idle" });
@@ -258,28 +261,36 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     }
   }, [id, showToast]);
 
+  // Track mutable values via refs so callbacks don't capture stale state.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+
   // WebSocket client for real-time sync.
   useEffect(() => {
     const client = new WsClient({
       docId: id,
       callbacks: {
         onDocChanged: async (event) => {
-          // Skip events from this client (origin is "server-watcher", not us).
-          if (event.origin === "server-watcher" && dirty) {
-            // Show conflict banner if we have unsaved changes.
+          const isDirty = dirtyRef.current;
+          const currentEditor = editorRef.current;
+
+          // Show conflict banner if we have unsaved changes.
+          if (event.origin === "server-watcher" && isDirty) {
             setConflict("This document was changed elsewhere.");
             return;
           }
 
           // If not dirty, apply the changes seamlessly.
-          if (!dirty) {
+          if (!isDirty) {
             try {
               const res = await fetch(`/api/documents/${id}`);
               if (res.ok) {
                 const data = await res.json();
                 setEtag(data.etag);
-                // Update editor content.
-                editor?.commands.setContent(data.content);
+                currentEditor?.commands.setContent(data.content);
                 currentContentRef.current = data.content;
                 setSaveStatus({ state: "saved" });
               }
@@ -298,7 +309,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     return () => {
       client.disconnect();
     };
-  }, [id, editor, dirty]);
+  }, [id]); // Only reconnect when doc id changes.
 
   // Table action handlers.
   const handleAddRowAbove = useCallback(() => {
@@ -436,7 +447,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
               if (res.ok) {
                 const data = await res.json();
                 setEtag(data.etag);
-                editor?.commands.setContent(data.content);
+                editorRef.current?.commands.setContent(data.content);
                 currentContentRef.current = data.content;
                 setSaveStatus({ state: "saved" });
                 setDirty(false);
