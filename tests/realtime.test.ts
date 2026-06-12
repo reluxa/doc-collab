@@ -152,4 +152,43 @@ describe("broadcast", () => {
       }),
     ).not.toThrow();
   });
+
+  it("multiple clients receive the same broadcast", async () => {
+    const ws1 = await connectClient(WS_TOKEN);
+    const ws2 = await connectClient(WS_TOKEN);
+
+    const msg1 = waitForMessage(ws1);
+    const msg2 = waitForMessage(ws2);
+
+    broadcast({
+      type: "doc-changed",
+      id: "shared-doc",
+      version: "v1",
+      origin: "server-watcher",
+    });
+
+    const [r1, r2] = await Promise.all([msg1, msg2]);
+    expect(JSON.parse(r1).id).toBe("shared-doc");
+    expect(JSON.parse(r2).id).toBe("shared-doc");
+
+    ws1.close();
+    ws2.close();
+  });
+
+  it("server-watcher origin is not skipped for clients", async () => {
+    const ws = await connectClient(WS_TOKEN);
+
+    const msgPromise = waitForMessage(ws);
+    broadcast({
+      type: "doc-changed",
+      id: "file-change",
+      version: "v1",
+      origin: "server-watcher",
+    });
+
+    const received = JSON.parse(await msgPromise);
+    expect(received.origin).toBe("server-watcher");
+    expect(received.id).toBe("file-change");
+    ws.close();
+  });
 });

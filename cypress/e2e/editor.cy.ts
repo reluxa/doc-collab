@@ -169,6 +169,63 @@ describe("Editor toolbar", () => {
     // Wait for the toast to appear.
     cy.contains("Export ready").should("be.visible");
   });
+
+  it("shows connection status indicator", () => {
+    // The connection indicator should show after a brief delay.
+    // It may be "Live", "Reconnecting…", or "Offline" depending on env.
+    cy.get('[aria-live="polite"]')
+      .contains(/Live|Reconnecting|Offline/)
+      .should("be.visible", { timeout: 10000 });
+  });
+
+  it("shows conflict banner when document is modified externally while dirty", () => {
+    // Type something to make the editor dirty.
+    cy.get(".ProseMirror").click();
+    cy.get(".ProseMirror").type(" local edit");
+
+    // Modify the document externally via API.
+    cy.request("GET", "/api/documents/cypress-test").then((resp) => {
+      cy.request({
+        method: "PUT",
+        url: "/api/documents/cypress-test",
+        headers: { "If-Match": resp.headers.etag },
+        body: { content: resp.body.content + "\n\nRemote change" },
+      });
+    });
+
+    // Wait for the file watcher to detect the change and broadcast.
+    cy.wait(1000);
+
+    // The conflict banner should appear.
+    cy.contains("This document was changed elsewhere").should("be.visible");
+  });
+
+  it("resolves conflict by reloading", () => {
+    // Type something to make the editor dirty.
+    cy.get(".ProseMirror").click();
+    cy.get(".ProseMirror").type(" local edit");
+
+    // Modify the document externally via API.
+    cy.request("GET", "/api/documents/cypress-test").then((resp) => {
+      cy.request({
+        method: "PUT",
+        url: "/api/documents/cypress-test",
+        headers: { "If-Match": resp.headers.etag },
+        body: { content: resp.body.content + "\n\nRemote change" },
+      });
+    });
+
+    cy.wait(1000);
+
+    // Click Reload to discard local changes.
+    cy.contains("This document was changed elsewhere").should("be.visible");
+    cy.get("[role=alert]").contains("button", "Reload").click();
+
+    // The conflict banner should disappear.
+    cy.contains("This document was changed elsewhere").should("not.exist");
+    // The remote change should be visible in the editor.
+    cy.contains("Remote change").should("be.visible");
+  });
 });
 
 describe("Document list", () => {
