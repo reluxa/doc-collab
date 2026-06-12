@@ -107,7 +107,23 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 6. Security & data safety
+## 6. Debugging & problem-solving
+
+### Rules
+- **Debug, don't experiment.** When something doesn't work, the default is systematic debugging — never trial-and-error tweaking. Random "change something and see if it helps" edits are not an acceptable problem-solving strategy.
+- **Gather evidence first.** Reproduce the problem reliably, read the full error message/stack trace, add logs/instrumentation, and study the relevant documentation and source before touching the fix.
+- **Form a theory, then validate it.** State a concrete hypothesis about the root cause and confirm it with evidence (a log line, a failing assertion, a doc/source reference) *before* writing any fix.
+- **Fix only when the cause is understood.** Implement a fix only once you can explain exactly what is happening and why. The fix targets the root cause, not the symptom.
+- **Clean up instrumentation.** Remove temporary debug logging once the cause is found, or promote it to intentional, leveled logging that complies with §2 and §7 (no secrets/full document contents).
+
+### Acceptance criteria
+- [ ] Non-trivial fixes are backed by an identified, evidence-validated root cause — not speculative changes.
+- [ ] A theory was stated and confirmed before the fix; the fix addresses the cause, not just the symptom.
+- [ ] Temporary debugging instrumentation is removed or converted to intentional logging before merge.
+
+---
+
+## 7. Security & data safety
 
 ### Rules
 - **Path-traversal protection is non-negotiable.** All document access goes through `resolveDocPath` (ID validation + containment), per `Architecture-final.md` §2.3 — in both API and MCP paths.
@@ -123,7 +139,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 7. Documentation & comments
+## 8. Documentation & comments
 
 ### Rules
 - **Comments explain *why*, not *what*.** No comments that restate the code. Document intent, trade-offs, invariants, and non-obvious constraints.
@@ -138,7 +154,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 8. UI & accessibility (front-end)
+## 9. UI & accessibility (front-end)
 
 ### Rules
 - **Follow `ui-design.md`** for tokens, components, layouts, and states — no hard-coded colors/spacing outside the token system.
@@ -152,7 +168,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 9. Performance & resources
+## 10. Performance & resources
 
 ### Rules
 - **No avoidable work on the hot path.** Debounce high-frequency events (typing/saves, §7.5); coalesce file/WS events.
@@ -166,7 +182,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 10. Version control & review
+## 11. Version control & review
 
 ### Rules
 - **Small, focused PRs**, one logical change each; ideally a story (or a slice of one).
@@ -182,22 +198,22 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 
 ---
 
-## 11. Definition of Done (global — inherited by every story)
+## 12. Definition of Done (global — inherited by every story)
 
 A unit of work is **Done** only when **all** of the following hold:
 
 - [ ] Acceptance criteria in the story file are met and demonstrated.
 - [ ] The story was manually demoed step by step to the human and accepted **before** tests were written (§5).
-- [ ] Code complies with this constitution (§§2–10 checklists).
+- [ ] Code complies with this constitution (§§2–11 checklists).
 - [ ] `tsc --noEmit`, lint, and format checks pass with zero errors/warnings on changed files.
 - [ ] Tests added/updated; full suite passes; critical-path coverage met; `lib/**` ≥ 80%.
-- [ ] Security rules (§6) upheld — traversal-safe, no secrets, no silent data loss.
-- [ ] UI/a11y rules (§8) upheld for any front-end change.
+- [ ] Security rules (§7) upheld — traversal-safe, no secrets, no silent data loss.
+- [ ] UI/a11y rules (§9) upheld for any front-end change.
 - [ ] Relevant docs (`Architecture-final.md` / `ui-design.md` / story) updated in the same change.
 - [ ] PR is small, conventional, self-reviewed, and CI-green.
 
 ---
 
-## 12. CI gates (automation that enforces the above)
+## 13. CI gates (automation that enforces the above)
 
 CI MUST run and block on: type-check (`tsc --noEmit`), lint (ESLint flat), format check (Prettier), unit + integration tests, coverage threshold (`lib/**` ≥ 80%), and a circular-dependency check. Green CI is a precondition for merge.
