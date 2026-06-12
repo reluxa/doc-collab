@@ -289,9 +289,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
               const res = await fetch(`/api/documents/${id}`);
               if (res.ok) {
                 const data = await res.json();
+                currentContentRef.current = data.content;
                 setEtag(data.etag);
                 currentEditor?.commands.setContent(data.content);
-                currentContentRef.current = data.content;
                 setSaveStatus({ state: "saved" });
               }
             } catch {

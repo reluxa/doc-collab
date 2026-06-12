@@ -88,6 +88,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 ## 5. Testing standards
 
 ### Rules
+- **Manual demo before tests (human verification gate).** Before writing any unit or integration tests for a story, the agent MUST manually demo the story to the human, step by step, proving the implementation actually works against the story's acceptance criteria. The agent walks through each step, shows the observable result (commands run, output, UI state, API/MCP responses), and waits for the human to explicitly accept the demo. Only after the human accepts may the agent proceed to write the unit and integration tests and finish the task. If the human rejects the demo or finds a gap, the agent fixes the implementation and re-demos — tests are not written against behavior that has not been demonstrated and accepted.
 - **Test the behavior, not the implementation.** Tests target public APIs and observable behavior so refactors don't break them needlessly.
 - **Every bug fix starts with a failing test** that reproduces it (regression guard).
 - **New logic ships with tests.** Pure logic → unit tests; route handlers/MCP tools → integration tests; conversion/round-trips → property/snapshot tests (e.g., `markdown-roundtrip`).
@@ -98,6 +99,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 - **Tests are first-class code.** Same naming, clarity, and review standards as production code; no logic duplicated between many tests (use helpers/factories).
 
 ### Acceptance criteria
+- [ ] The story was manually demoed step by step to the human and explicitly accepted **before** unit/integration tests were written.
 - [ ] New/changed behavior has accompanying tests; bug fixes include a regression test.
 - [ ] All listed critical paths are covered; `lib/**` line coverage ≥ 80%.
 - [ ] Test suite is deterministic (passes repeatedly with no network/time dependence) and isolated (temp dirs, no shared state).
@@ -185,6 +187,7 @@ How to read this: each section ends with a **checklist** of objectively verifiab
 A unit of work is **Done** only when **all** of the following hold:
 
 - [ ] Acceptance criteria in the story file are met and demonstrated.
+- [ ] The story was manually demoed step by step to the human and accepted **before** tests were written (§5).
 - [ ] Code complies with this constitution (§§2–10 checklists).
 - [ ] `tsc --noEmit`, lint, and format checks pass with zero errors/warnings on changed files.
 - [ ] Tests added/updated; full suite passes; critical-path coverage met; `lib/**` ≥ 80%.

@@ -26,8 +26,8 @@ async function setupFileWatcher(): Promise<void> {
       stabilityThreshold: 150,
       pollInterval: 50,
     },
-    // Only watch .md files.
-    ignored: /(^|\/)[^.]/,
+    // Ignore hidden files/directories; .md filter is in callbacks.
+    ignored: [/^\./, /\/\./],
   });
 
   watcher.on("change", async (filePath: string) => {
