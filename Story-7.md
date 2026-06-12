@@ -11,12 +11,12 @@ Replace the default Next dev/start entry with a custom server that hosts Next.js
 
 ## Scope / Tasks
 
-- [ ] `server.ts`: boot Next.js (dev + prod modes) and attach a `ws` server to the same HTTP server via the `upgrade` event at path `/ws`.
-- [ ] WS auth (§7.6): bind to `HOST` (default `127.0.0.1`); validate `WS_TOKEN` on upgrade (`?token=` or `Sec-WebSocket-Protocol`); reject invalid with `401`.
-- [ ] `src/lib/realtime.ts`: connection registry + `broadcast(event)` helper; event shape `{ type: "doc-changed", id, version, origin }`.
-- [ ] chokidar watcher over `DOCS_ROOT` with `awaitWriteFinish`; on change, compute version (ETag) and broadcast to clients subscribed to that doc id.
-- [ ] Origin tagging: writes carry an `origin` (client id) so the originating browser can be skipped.
-- [ ] Inject `WS_TOKEN` (and WS URL) into the page for the browser client (Story 8) to consume.
+- [x] `server.ts`: boot Next.js (dev + prod modes) and attach a `ws` server to the same HTTP server via the `upgrade` event at path `/ws`.
+- [x] WS auth (§7.6): bind to `HOST` (default `127.0.0.1`); validate `WS_TOKEN` on upgrade (`?token=` or `Sec-WebSocket-Protocol`); reject invalid with `401`.
+- [x] `src/lib/realtime.ts`: connection registry + `broadcast(event)` helper; event shape `{ type: "doc-changed", id, version, origin }`.
+- [x] chokidar watcher over `DOCS_ROOT` with `awaitWriteFinish`; on change, compute version (ETag) and broadcast to clients subscribed to that doc id.
+- [x] Origin tagging: writes carry an `origin` (client id) so the originating browser can be skipped.
+- [x] Inject `WS_TOKEN` (and WS URL) into the page for the browser client (Story 8) to consume.
 
 ## Out of scope
 
@@ -29,8 +29,8 @@ Replace the default Next dev/start entry with a custom server that hosts Next.js
 
 ## Acceptance criteria
 
-- [ ] `npm run dev` starts Next.js + WS on one port; the app still renders normally.
-- [ ] **Given** a connected WS client with a valid token, **when** a `.md` file changes on disk (e.g., edited via API or manually), **then** the client receives a `doc-changed` event with correct `id` and `version` within ~1s.
-- [ ] **Given** an upgrade request with a missing/invalid token, **then** it is rejected with `401` and no events are delivered.
-- [ ] The server binds to `127.0.0.1` by default and is not reachable on the LAN unless `HOST` is changed.
-- [ ] Rapid successive writes are coalesced (no event storm) via `awaitWriteFinish`.
+- [x] `npm run dev` starts Next.js + WS on one port; the app still renders normally.
+- [x] **Given** a connected WS client with a valid token, **when** a `.md` file changes on disk (e.g., edited via API or manually), **then** the client receives a `doc-changed` event with correct `id` and `version` within ~1s.
+- [x] **Given** an upgrade request with a missing/invalid token, **then** it is rejected with `401` and no events are delivered.
+- [x] The server binds to `127.0.0.1` by default and is not reachable on the LAN unless `HOST` is changed.
+- [x] Rapid successive writes are coalesced (no event storm) via `awaitWriteFinish`.
