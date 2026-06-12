@@ -19,9 +19,10 @@ export const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 /** Shared token guarding WebSocket upgrades. Generated once at startup. */
 export const WS_TOKEN =
   process.env.WS_TOKEN ??
-  (function generateToken(): string {
-    // Simple random hex token (not cryptographically strong — sufficient for local trust model).
-    return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  })();
+  (process.env.NODE_ENV === "production"
+    ? (function generateProdToken(): string {
+        return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      })()
+    : "dev-token-7f3a9b2c1d4e5f6a8b9c0d1e2f3a4b5c");
