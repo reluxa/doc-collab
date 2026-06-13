@@ -16,6 +16,11 @@ export const HOST = process.env.HOST ?? "127.0.0.1";
 /** Server port. */
 export const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
+/** Collaboration server port (Hocuspocus). */
+export const COLLAB_PORT = process.env.COLLAB_PORT
+  ? Number(process.env.COLLAB_PORT)
+  : 1235;
+
 /** Shared token guarding WebSocket upgrades. Generated once at startup. */
 export const WS_TOKEN =
   process.env.WS_TOKEN ??
