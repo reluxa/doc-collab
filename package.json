@@ -30,6 +30,7 @@
     "@react-pdf/renderer": "^4.5.1",
     "@tiptap/extension-code-block-lowlight": "^3.26.1",
     "@tiptap/extension-collaboration": "^3.26.1",
+    "@tiptap/extension-collaboration-cursor": "^2.26.2",
     "@tiptap/extension-highlight": "^3.26.1",
     "@tiptap/extension-link": "^3.26.1",
     "@tiptap/extension-placeholder": "^3.26.1",
