@@ -8,21 +8,40 @@
 import type { DocumentMeta } from "../types/document";
 import { listDocuments as listDocumentsUncached } from "./documents";
 
-let cached: DocumentMeta[] | null = null;
+/** Shared across custom server + Next.js API bundles (separate module instances). */
+const globalForDocList = globalThis as unknown as {
+  __docCollabDocumentListCache?: DocumentMeta[] | null;
+};
+
+function getCacheStore(): { cached: DocumentMeta[] | null } {
+  if (!globalForDocList.__docCollabDocumentListCache) {
+    globalForDocList.__docCollabDocumentListCache = null;
+  }
+  return {
+    get cached() {
+      return globalForDocList.__docCollabDocumentListCache ?? null;
+    },
+    set cached(value: DocumentMeta[] | null) {
+      globalForDocList.__docCollabDocumentListCache = value;
+    },
+  };
+}
 
 /** Drop cached list — call after any document add/change/delete. */
 export function invalidateDocumentListCache(): void {
-  cached = null;
+  globalForDocList.__docCollabDocumentListCache = null;
 }
 
 /** List documents, reusing cache when valid. */
 export async function listDocumentsCached(): Promise<DocumentMeta[]> {
-  if (cached) return cached;
-  cached = await listDocumentsUncached();
-  return cached;
+  const store = getCacheStore();
+  if (store.cached) return store.cached;
+  const docs = await listDocumentsUncached();
+  store.cached = docs;
+  return docs;
 }
 
 /** Reset state (tests). */
 export function resetDocumentListCache(): void {
-  cached = null;
+  invalidateDocumentListCache();
 }

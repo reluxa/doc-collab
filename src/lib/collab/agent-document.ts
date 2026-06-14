@@ -37,10 +37,43 @@ function sectionsEqual(a: Section, b: Section): boolean {
   return a.heading === b.heading && a.body === b.body;
 }
 
+/** ProseMirror-markdown uses snake_case node names; Tiptap expects camelCase. */
+const PM_TO_TIPTAP_NODE: Record<string, string> = {
+  bullet_list: "bulletList",
+  list_item: "listItem",
+  ordered_list: "orderedList",
+  hard_break: "hardBreak",
+  code_block: "codeBlock",
+  horizontal_rule: "horizontalRule",
+};
+
+function normalizeProsemirrorJsonForTiptap(node: unknown): unknown {
+  if (!node || typeof node !== "object") return node;
+  const obj = node as { type?: string; content?: unknown[]; [key: string]: unknown };
+  const type =
+    obj.type && PM_TO_TIPTAP_NODE[obj.type] ? PM_TO_TIPTAP_NODE[obj.type] : obj.type;
+  if (!obj.content) return { ...obj, type };
+  return {
+    ...obj,
+    type,
+    content: obj.content.map(normalizeProsemirrorJsonForTiptap),
+  };
+}
+
 function applyDefaultFragmentMarkdown(doc: Y.Doc, markdown: string): void {
   const node = defaultMarkdownParser.parse(markdown);
-  const patch = TiptapTransformer.toYdoc(node.toJSON(), COLLAB_FIELD);
-  Y.applyUpdate(doc, Y.encodeStateAsUpdate(patch));
+  const json = normalizeProsemirrorJsonForTiptap(node.toJSON());
+  const patch = TiptapTransformer.toYdoc(json, COLLAB_FIELD);
+
+  // Replace the live fragment — Y.applyUpdate alone merges and duplicates blocks.
+  doc.transact(() => {
+    const target = doc.getXmlFragment(COLLAB_FIELD);
+    if (target.length > 0) {
+      target.delete(0, target.length);
+    }
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(patch));
+  });
+
   patch.destroy();
 }
 
@@ -51,12 +84,13 @@ export function readCollabMarkdown(doc: Y.Doc): string {
 
 /** Apply a full-document Markdown update as CRDT-merged Yjs updates. */
 export function applyCollabMarkdown(doc: Y.Doc, markdown: string): number {
-  const current = serializeDocToMarkdown(doc);
-  if (current === markdown) return 0;
-
   if (doc.share.has(COLLAB_FIELD)) {
     applyDefaultFragmentMarkdown(doc, markdown);
+    return 1;
   }
+
+  const current = serializeDocToMarkdown(doc);
+  if (current === markdown) return 0;
   return applyMarkdownDiff(doc, markdown);
 }
 

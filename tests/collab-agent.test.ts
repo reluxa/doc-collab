@@ -316,6 +316,30 @@ describe("Story 13 — no persistence reconciliation feedback loop", () => {
     doc.destroy();
   });
 
+  it("applyCollabMarkdown updates Tiptap default fragment with bullet lists", () => {
+    const doc = new Y.Doc({ gc: true });
+    mergeParagraph(doc, "Before");
+
+    const withList = `# OpenClaw Test
+
+## Purpose
+
+Body text.
+
+## Next steps
+
+- Item one
+- Item two
+`;
+
+    applyCollabMarkdown(doc, withList);
+    const json = TiptapTransformer.fromYdoc(doc, COLLAB_FIELD);
+    const types = (json?.content ?? []).map((b: { type: string }) => b.type);
+    expect(types).toContain("heading");
+    expect(types).toContain("bulletList");
+    doc.destroy();
+  });
+
   it("reconcileExternalMarkdownIntoDoc skips when disk matches live", () => {
     const doc = markdownToYDoc(SECTION_DOC);
     markPersistenceWrite("noop-doc", SECTION_DOC);

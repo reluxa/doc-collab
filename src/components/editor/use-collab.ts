@@ -168,12 +168,32 @@ export function useCollab({
   const bootstrapIfEmpty = useCallback(
     (editor: Editor) => {
       if (bootstrappedRef.current || !fallbackContent.trim()) return;
+
+      const fragment = collabRef.current?.doc.getXmlFragment(COLLAB_FIELD);
+      if (fragment && fragment.length > 0) {
+        bootstrappedRef.current = true;
+        return;
+      }
       if (!editor.isEmpty) {
         bootstrappedRef.current = true;
         return;
       }
-      editor.commands.setContent(fallbackContent);
-      bootstrappedRef.current = true;
+
+      // Y.Doc content may not be bound to the editor yet — wait one frame.
+      requestAnimationFrame(() => {
+        if (bootstrappedRef.current) return;
+        const liveFragment = collabRef.current?.doc.getXmlFragment(COLLAB_FIELD);
+        if (liveFragment && liveFragment.length > 0) {
+          bootstrappedRef.current = true;
+          return;
+        }
+        if (!editor.isEmpty) {
+          bootstrappedRef.current = true;
+          return;
+        }
+        editor.commands.setContent(fallbackContent);
+        bootstrappedRef.current = true;
+      });
     },
     [fallbackContent],
   );
