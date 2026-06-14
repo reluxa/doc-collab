@@ -43,7 +43,7 @@ Key properties:
 
 ## 2. Prerequisites
 
-- Node.js 20.9+ LTS and npm 10+
+- Node.js 24 LTS and npm 10+
 - This repo installed: `npm install`
 - An openclaw client capable of launching an MCP server over **stdio** (the
   standard `command` + `args` + `env` MCP server convention).

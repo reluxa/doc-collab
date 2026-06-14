@@ -41,6 +41,9 @@ lerna-debug.log*
 # OS
 Thumbs.db
 
+# Test temp directories
+.tmp-*/
+
 # Pi session artifacts
 .pi/
 

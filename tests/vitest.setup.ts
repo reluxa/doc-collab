@@ -1,8 +1,8 @@
 /**
- * Vitest global setup (CI + local Node 20).
+ * Vitest global setup (CI + local).
  *
- * - Node 20 has no global WebSocket; Hocuspocus provider tests need one.
- * - `./documents` is gitignored; persistence tests write there.
+ * - Ensures `./documents` exists (gitignored; persistence tests write there).
+ * - WebSocket polyfill for older Node; no-op on Node 22+ where it is built-in.
  */
 
 import fs from "node:fs";

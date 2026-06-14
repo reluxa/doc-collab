@@ -4,7 +4,7 @@ A collaborative online document editor where a human user and an AI agent (openc
 
 ## Prerequisites
 
-- **Node.js** 20.9+ LTS
+- **Node.js** 24 LTS
 - **npm** 10+
 
 ## Quick Start
