@@ -44,7 +44,7 @@ export default function HomePage() {
   }, [newDocId, showToast]);
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Topbar */}
       <header className="glass-bar sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export default function HomePage() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 min-h-0 overflow-y-auto p-6">
         <div className="mx-auto max-w-[1400px]">
           <div className="mb-5 flex items-end justify-between">
             <div>
