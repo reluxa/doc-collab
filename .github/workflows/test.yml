@@ -30,8 +30,8 @@ jobs:
         run: npm run lint
         continue-on-error: true
 
-      - name: Unit tests
-        run: npm test
+      - name: Unit tests (no-server)
+        run: npx vitest run --exclude "tests/api-documents.test.ts" --exclude "tests/api-write-echo.test.ts"
 
       - name: Build
         run: npm run build
@@ -52,6 +52,9 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:3000 || exit 1
+
+      - name: API integration tests
+        run: npx vitest run "tests/api-documents.test.ts" "tests/api-write-echo.test.ts"
 
       - name: Install Cypress binaries
         run: npx cypress install
