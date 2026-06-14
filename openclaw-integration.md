@@ -192,8 +192,10 @@ Recommended openclaw loop:
   payloads small and only touches one section; concurrent human edits elsewhere
   are preserved by the CRDT.
 - **For full-document writes, pass `expected_version`** (the etag from the last
-  read). If stale, the tool returns a conflict so the agent can re-read and retry.
-  Omitting it falls back to last-write-wins (logged with a warning).
+  read) when `MCP_COLLAB=0` or the collab server is down — disk writes use
+  optimistic concurrency. With `MCP_COLLAB=1` and the web server up,
+  `update_document` routes through the CRDT peer and **does not** reject stale
+  disk etags (persistence may bump the etag without a human edit).
 - **No hard locks.** When the agent starts a multi-step section rewrite it sets a
   Yjs awareness flag; the UI de-emphasizes that section but the human can still
   edit, and the CRDT guarantees no data loss. A stuck agent never blocks the human.
@@ -219,6 +221,7 @@ Recommended openclaw loop:
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Agent edits overwrite human edits | MCP peer can't reach Hocuspocus, fell back to disk write | Ensure the web server is running and `WS_TOKEN` matches between processes. |
+| `update_document` returns etag mismatch with no human editor | Stale disk etag after CRDT persistence; use `MCP_COLLAB=1` (CRDT path skips disk pre-check) or re-read before write | Prefer `update_section`; with collab on, full-document updates merge via Yjs. |
 | `update_section` errors with "requires MCP_COLLAB" | `MCP_COLLAB=0` | Set `MCP_COLLAB=1` and ensure the web server is up. |
 | Agent sees no documents / wrong documents | `DOCUMENTS_DIR` differs between web and MCP processes | Point both at the same absolute path. |
 | Agent connects but never gets updates | No `resources/subscribe` | Subscribe to `doc://{id}` for active documents. |

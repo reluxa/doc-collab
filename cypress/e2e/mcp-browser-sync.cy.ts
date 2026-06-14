@@ -46,17 +46,23 @@ describe("MCP agent edits sync to browser", () => {
       url: `/api/documents/${DOC_ID}`,
       failOnStatusCode: false,
     });
+    const initialMarkdown = `# OpenClaw Test
+
+## Purpose
+
+Initial purpose text ${tag}.`;
     cy.request({
       method: "POST",
       url: "/api/documents",
       body: {
         id: DOC_ID,
-        content: `# OpenClaw Test
-
-## Purpose
-
-Initial purpose text ${tag}.`,
+        content: initialMarkdown,
       },
+    });
+    // Reset in-memory Y.Doc (API create alone leaves stale Hocuspocus state).
+    cy.task("mcpUpdateDocument", {
+      documentId: DOC_ID,
+      markdown: initialMarkdown,
     });
   });
 
@@ -106,6 +112,106 @@ Initial purpose text ${tag}.`,
     cy.get(".ProseMirror", { timeout: 10_000 })
       .should("contain.text", "Next steps")
       .and("contain.text", "Simultaneous editing test");
+  });
+
+  it("shows consecutive MCP updates (append section with bold) live in the open editor", () => {
+    visitCollabEditor();
+    waitForCollabConnected();
+
+    cy.get(".ProseMirror").should("contain.text", `Initial purpose text ${tag}`);
+
+    cy.task("mcpUpdateDocument", {
+      documentId: DOC_ID,
+      markdown: `# OpenClaw Test
+
+## Purpose
+
+First update ${tag}.
+
+## Next steps
+
+- First bullet`,
+    });
+
+    cy.get(".ProseMirror", { timeout: 10_000 }).should("contain.text", "First bullet");
+
+    cy.task("mcpUpdateDocument", {
+      documentId: DOC_ID,
+      markdown: `# OpenClaw Test
+
+## Purpose
+
+First update ${tag}.
+
+## Next steps
+
+- First bullet
+- **Second bold bullet** ${tag}
+
+## Installation prices
+
+- **Base install:** 80 000 – 110 000 Ft`,
+    });
+
+    cy.get(".ProseMirror", { timeout: 10_000 })
+      .should("contain.text", "First bullet")
+      .and("contain.text", "Second bold bullet")
+      .and("contain.text", "Installation prices");
+
+    cy.wait(1500);
+    cy.request("GET", `/api/documents/${DOC_ID}`).then((resp) => {
+      expect(resp.body.content).to.include("Second bold bullet");
+      expect(resp.body.content).to.include("Installation prices");
+    });
+  });
+
+  it("accepts update_document with stale disk etag when MCP_COLLAB uses CRDT", () => {
+    let staleEtag = "";
+
+    cy.request("GET", `/api/documents/${DOC_ID}`).then((resp) => {
+      staleEtag = resp.body.etag as string;
+    });
+
+    // Simulates Hocuspocus persistence (or any system write) bumping disk etag
+    // while the agent still holds the etag from an earlier read_document.
+    cy.task("mcpUpdateDocument", {
+      documentId: DOC_ID,
+      markdown: `# OpenClaw Test
+
+## Purpose
+
+System persist bump ${tag}.`,
+    });
+
+    cy.wait(1500);
+    cy.request("GET", `/api/documents/${DOC_ID}`).then((resp) => {
+      expect(resp.body.etag).not.to.eq(staleEtag);
+    });
+
+    const finalMarkdown = `${agentMarkdown(tag)}
+
+## Append after stale etag
+
+- **bold item** ${tag}`;
+
+    cy.then(() =>
+      cy.task("mcpUpdateDocumentWithVersion", {
+        documentId: DOC_ID,
+        markdown: finalMarkdown,
+        expectedVersion: staleEtag,
+      }),
+    );
+
+    cy.request("GET", `/api/documents/${DOC_ID}`).then((resp) => {
+      expect(resp.body.content).to.include("Append after stale etag");
+      expect(resp.body.content).to.include("bold item");
+    });
+
+    visitCollabEditor();
+    waitForCollabConnected();
+    cy.get(".ProseMirror", { timeout: 10_000 })
+      .should("contain.text", "Append after stale etag")
+      .and("contain.text", "bold item");
   });
 
   it("lists MCP-created documents on the home page", () => {

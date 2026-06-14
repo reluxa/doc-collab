@@ -47,15 +47,40 @@ const PM_TO_TIPTAP_NODE: Record<string, string> = {
   horizontal_rule: "horizontalRule",
 };
 
+/** ProseMirror-markdown mark names differ from Tiptap StarterKit (`strong` → `bold`). */
+const PM_TO_TIPTAP_MARK: Record<string, string> = {
+  strong: "bold",
+  em: "italic",
+  s: "strike",
+};
+
 function normalizeProsemirrorJsonForTiptap(node: unknown): unknown {
   if (!node || typeof node !== "object") return node;
-  const obj = node as { type?: string; content?: unknown[]; [key: string]: unknown };
+  const obj = node as {
+    type?: string;
+    content?: unknown[];
+    marks?: { type?: string; [key: string]: unknown }[];
+    [key: string]: unknown;
+  };
+
   const type =
     obj.type && PM_TO_TIPTAP_NODE[obj.type] ? PM_TO_TIPTAP_NODE[obj.type] : obj.type;
-  if (!obj.content) return { ...obj, type };
-  return {
+
+  const marks = obj.marks?.map((mark) => ({
+    ...mark,
+    type:
+      mark.type && PM_TO_TIPTAP_MARK[mark.type] ? PM_TO_TIPTAP_MARK[mark.type] : mark.type,
+  }));
+
+  const normalized = {
     ...obj,
     type,
+    ...(marks ? { marks } : {}),
+  };
+
+  if (!obj.content) return normalized;
+  return {
+    ...normalized,
     content: obj.content.map(normalizeProsemirrorJsonForTiptap),
   };
 }

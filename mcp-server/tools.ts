@@ -34,7 +34,7 @@ function docUri(id: string): string {
   return `doc://${id}`;
 }
 
-async function readDocumentContent(name: string): Promise<{ content: string; etag: string }> {
+export async function readDocumentContent(name: string): Promise<{ content: string; etag: string }> {
   if (isMcpCollabEnabled()) {
     try {
       const [content, disk] = await Promise.all([
@@ -51,27 +51,30 @@ async function readDocumentContent(name: string): Promise<{ content: string; eta
   return { content: doc.content, etag: doc.etag };
 }
 
-async function updateDocumentContent(
+export async function updateDocumentContent(
   name: string,
   content: string,
   expectedVersion?: string,
 ): Promise<{ etag: string }> {
-  if (expectedVersion) {
-    const current = await readDocument(name);
-    if (current.etag !== expectedVersion) {
-      throw new ConflictError(
-        "Document was modified by another writer (etag mismatch)",
-      );
-    }
-  }
-
+  // When the CRDT peer is available, apply through Hocuspocus (merge path).
+  // Disk etag pre-check is skipped — persistence may bump the etag without a
+  // human edit, and Yjs handles concurrent changes.
   if (isMcpCollabEnabled()) {
     try {
       await peerUpdateDocument(name, content);
       const disk = await readDocument(name);
       return { etag: disk.etag };
     } catch {
-      // Collab server unavailable — fall back to disk write.
+      // Collab server unavailable — fall back to disk write with etag guard.
+    }
+  }
+
+  if (expectedVersion) {
+    const current = await readDocument(name);
+    if (current.etag !== expectedVersion) {
+      throw new ConflictError(
+        "Document was modified by another writer (etag mismatch)",
+      );
     }
   }
 

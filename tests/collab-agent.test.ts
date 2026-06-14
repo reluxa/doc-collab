@@ -340,6 +340,15 @@ Body text.
     doc.destroy();
   });
 
+  it("applyCollabMarkdown accepts prosemirror **bold** marks", () => {
+    const doc = new Y.Doc({ gc: true });
+    applyCollabMarkdown(doc, "## Section\n\n**bold label** and plain text.");
+    const md = readCollabMarkdown(doc);
+    expect(md).toContain("bold label");
+    expect(md).toContain("plain text");
+    doc.destroy();
+  });
+
   it("reconcileExternalMarkdownIntoDoc skips when disk matches live", () => {
     const doc = markdownToYDoc(SECTION_DOC);
     markPersistenceWrite("noop-doc", SECTION_DOC);

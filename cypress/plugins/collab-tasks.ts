@@ -12,6 +12,10 @@ import type Cypress from "cypress";
 
 import { COLLAB_FIELD } from "../../src/lib/collab/constants";
 import { peerUpdateDocument } from "../../mcp-server/collab-peer";
+import {
+  readDocumentContent,
+  updateDocumentContent,
+} from "../../mcp-server/tools";
 import { createDocument } from "../../src/lib/documents";
 
 const DEFAULT_WS_TOKEN = "dev-token-7f3a9b2c1d4e5f6a8b9c0d1e2f3a4b5c";
@@ -48,6 +52,10 @@ interface McpUpdateDocumentOptions extends CollabTaskOptions {
 interface McpCreateDocumentOptions {
   name: string;
   content: string;
+}
+
+interface McpUpdateDocumentWithVersionOptions extends McpUpdateDocumentOptions {
+  expectedVersion: string;
 }
 
 function wsToken(): string {
@@ -220,6 +228,22 @@ export function registerCollabTasks(on: Cypress.PluginEvents, config: Cypress.Pl
         await new Promise((resolve) => setTimeout(resolve, 300));
         return null;
       });
+    },
+
+    /** Same code path as MCP `read_document` (live content + disk etag). */
+    mcpReadDocument({ documentId }: CollabTaskOptions) {
+      process.env.MCP_COLLAB = "1";
+      return readDocumentContent(documentId);
+    },
+
+    /** Same code path as MCP `update_document` (full tool, incl. expected_version). */
+    mcpUpdateDocumentWithVersion({
+      documentId,
+      markdown,
+      expectedVersion,
+    }: McpUpdateDocumentWithVersionOptions) {
+      process.env.MCP_COLLAB = "1";
+      return updateDocumentContent(documentId, markdown, expectedVersion);
     },
 
     /** Same code path as MCP `update_document` / `peerUpdateDocument` (Story 13). */
