@@ -5,6 +5,8 @@
  * simulated here via @hocuspocus/provider while the spec exercises the UI.
  */
 
+import "./ensure-websocket";
+
 import * as Y from "yjs";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import { TiptapTransformer } from "@hocuspocus/transformer";

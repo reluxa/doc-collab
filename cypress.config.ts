@@ -1,5 +1,6 @@
 import { defineConfig } from "cypress";
 
+import "./cypress/plugins/ensure-websocket";
 import { registerCollabTasks } from "./cypress/plugins/collab-tasks";
 
 export default defineConfig({
