@@ -14,7 +14,11 @@ import * as path from "node:path";
 import * as Y from "yjs";
 
 import { markdownToYDoc, yDocToMarkdown, getSectionsFromDoc } from "@/lib/collab/md-bridge";
-import { storeYDocSnapshot, loadYDocSnapshot, ydocPath } from "@/lib/collab/persistence";
+import {
+  storeYDocSnapshot,
+  loadYDocSnapshot,
+  ydocPath,
+} from "@/lib/collab/persistence";
 import { DOCS_ROOT } from "@/lib/config";
 
 // Use unique test document IDs to avoid conflicts.

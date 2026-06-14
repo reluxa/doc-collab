@@ -1,67 +1,46 @@
 /**
- * Standalone Hocuspocus collaboration server.
+ * Standalone Hocuspocus collaboration server (dev convenience).
  *
- * Listens on its own port (default 1235) for Yjs WebSocket connections.
- * Each document gets its own Y.Doc with persistence to .md + .ydoc.
- *
- * Usage:
- *   - Dev:  `npm run dev:collab`
- *   - Prod: `npm run start:collab`
- *
- * Auth: connections require the same `WS_TOKEN` as the main server.
+ * Prefer `npm run dev` which attaches Hocuspocus to the main server at
+ * `/ws/collab`. This entrypoint remains for isolated collab debugging.
  */
 
 import { Server } from "@hocuspocus/server";
 import type {
-  onConnectPayload,
+  onAuthenticatePayload,
+  onDisconnectPayload,
   onLoadDocumentPayload,
   onStoreDocumentPayload,
-  onDisconnectPayload,
 } from "@hocuspocus/server";
+import * as Y from "yjs";
 
 import { WS_TOKEN, COLLAB_PORT } from "./lib/config";
 import { loadYDocSnapshot, storeYDocSnapshot } from "./lib/collab/persistence";
 
-// ---------------------------------------------------------------------------
-// Boot
-// ---------------------------------------------------------------------------
-
 const server = new Server({
   port: COLLAB_PORT,
-  // Debounce: 400ms after last change, max 30s between saves.
   debounce: 400,
   maxDebounce: 30_000,
 
-  // Authenticate with WS_TOKEN.
-  async onConnect(data: onConnectPayload) {
-    const url = new URL(data.request.url);
-    const token = url.searchParams.get("token");
-    if (!token || token !== WS_TOKEN) {
+  async onAuthenticate(data: onAuthenticatePayload) {
+    if (!data.token || data.token !== WS_TOKEN) {
       throw new Error("Unauthorized");
     }
-    return data;
   },
 
-  // Load existing Y.Doc from .ydoc snapshot.
   async onLoadDocument(data: onLoadDocumentPayload) {
     const snapshot = await loadYDocSnapshot(data.documentName);
     if (snapshot) {
-      const { applyUpdate } = await import("yjs");
-      applyUpdate(data.document, snapshot);
+      Y.applyUpdate(data.document, snapshot);
     }
-    return data;
   },
 
-  // Persist Y.Doc to .md + .ydoc.
   async onStoreDocument(data: onStoreDocumentPayload) {
     await storeYDocSnapshot(data.documentName, data.document);
-    return data;
   },
 
-  // Flush on disconnect to avoid data loss.
   async onDisconnect(data: onDisconnectPayload) {
     await storeYDocSnapshot(data.documentName, data.document);
-    return data;
   },
 });
 

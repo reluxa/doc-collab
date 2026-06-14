@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { AnyExtension } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -18,6 +19,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import { Markdown } from "tiptap-markdown";
 import { common, createLowlight } from "lowlight";
+import { isChangeOrigin } from "@tiptap/extension-collaboration";
 
 import { Toolbar } from "./toolbar";
 import { ConflictBanner } from "./conflict-banner";
@@ -25,6 +27,13 @@ import { WsClient, type ConnectionStatus } from "./ws-client";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
 import { useToast } from "@/components/ui/toast";
+import { useCollab } from "./use-collab";
+import { PresenceStack, SoftLockHint } from "./presence-stack";
+import { isCollabEnabled } from "@/client/collab-provider";
+import { COLLAB_FIELD } from "@/lib/collab/constants";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
+import { PRESENCE_COLORS } from "@/client/collab-provider";
 
 const lowlight = createLowlight(common);
 
@@ -42,6 +51,29 @@ interface EditorProps {
 }
 
 export function Editor({ id, initialContent, initialEtag }: EditorProps) {
+  const [collabMode, setCollabMode] = useState(false);
+  const [wsToken, setWsToken] = useState("");
+
+  useEffect(() => {
+    setCollabMode(isCollabEnabled());
+    const config = (window as unknown as Record<string, unknown>).__DOC_COLLAB_CONFIG as
+      | { wsToken?: string }
+      | undefined;
+    setWsToken(config?.wsToken ?? "");
+  }, []);
+
+  const collab = useCollab({
+    documentId: id,
+    token: wsToken,
+    fallbackContent: initialContent,
+    enabled: collabMode && !!wsToken,
+  });
+
+  const bootstrapIfEmptyRef = useRef(collab.bootstrapIfEmpty);
+  bootstrapIfEmptyRef.current = collab.bootstrapIfEmpty;
+  const updateSectionAwarenessRef = useRef(collab.updateSectionAwareness);
+  updateSectionAwarenessRef.current = collab.updateSectionAwareness;
+
   const [etag, setEtag] = useState(initialEtag);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: "saved" });
   const [dirty, setDirty] = useState(false);
@@ -58,74 +90,115 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   // Current content for comparison.
   const currentContentRef = useRef(initialContent);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        undoRedo: false,
-        codeBlock: false,
-        // Provided explicitly below with custom config — disable the
-        // StarterKit-bundled versions to avoid duplicate extension names.
-        link: false,
-        underline: false,
-      }),
-      Markdown.configure({
-        tightLists: true,
-        tightListClass: "tight",
-        bulletListMarker: "-",
-      }),
-      Placeholder.configure({
-        placeholder: "Start writing, or let openclaw help…",
-      }),
-      Underline,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      CodeBlockLowlight.configure({
-        lowlight,
-        defaultLanguage: null,
-      }),
-      TiptapLink.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: "text-brand-500 underline-offset-2 hover:underline",
-        },
-      }),
-      Highlight.configure({
-        multicolor: true,
-      }),
-      Table.configure({
-        resizable: true,
-      }),
-      TableRow,
-      TableHeader,
-      TableCell,
-    ],
-    // The editor is hydrated on the client; rendering immediately would
-    // cause an SSR hydration mismatch.
-    immediatelyRender: false,
-    content: initialContent || undefined,
-    onUpdate: () => {
-      if (!editor) return;
-      const storage = editor.storage as unknown as Record<string, unknown>;
-      const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+  const collabExtensionsReady =
+    collabMode && !!collab.collab && collab.status === "connected";
 
-      // Mark as dirty if content differs from last saved content.
-      const prevContent = currentContentRef.current;
-      if (markdown !== prevContent) {
-        setDirty(true);
-        currentContentRef.current = markdown;
-      }
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          undoRedo: collabExtensionsReady ? false : undefined,
+          codeBlock: false,
+          link: false,
+          underline: false,
+        }),
+        ...(collabExtensionsReady && collab.collab
+          ? ([
+              Collaboration.configure({
+                document: collab.collab.doc,
+                field: COLLAB_FIELD,
+              }),
+              CollaborationCaret.configure({
+                provider: collab.collab.provider,
+                user: { name: "You", color: PRESENCE_COLORS.human },
+              }),
+            ] as AnyExtension[])
+          : []),
+        Markdown.configure({
+          tightLists: true,
+          tightListClass: "tight",
+          bulletListMarker: "-",
+        }),
+        Placeholder.configure({
+          placeholder: "Start writing, or let openclaw help…",
+        }),
+        Underline,
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        CodeBlockLowlight.configure({
+          lowlight,
+          defaultLanguage: null,
+        }),
+        TiptapLink.configure({
+          openOnClick: false,
+          HTMLAttributes: {
+            class: "text-brand-500 underline-offset-2 hover:underline",
+          },
+        }),
+        Highlight.configure({
+          multicolor: true,
+        }),
+        Table.configure({
+          resizable: true,
+        }),
+        TableRow,
+        TableHeader,
+        TableCell,
+      ],
+      immediatelyRender: false,
+      content: collabExtensionsReady && collab.synced ? undefined : (initialContent || undefined),
+      onUpdate: ({ editor: ed }) => {
+        if (collabMode) {
+          collab.updateSectionAwareness(ed);
+          return;
+        }
+        const storage = ed.storage as unknown as Record<string, unknown>;
+        const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
 
-      if (saveStatus.state !== "saving") {
-        setSaveStatus({ state: "idle" });
-      }
+        const prevContent = currentContentRef.current;
+        if (markdown !== prevContent) {
+          setDirty(true);
+          currentContentRef.current = markdown;
+        }
 
-      // Debounced auto-save.
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        performSave();
-      }, SAVE_DEBOUNCE_MS);
+        if (saveStatus.state !== "saving") {
+          setSaveStatus({ state: "idle" });
+        }
+
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => {
+          performSave();
+        }, SAVE_DEBOUNCE_MS);
+      },
     },
-  });
+    [collabExtensionsReady, collab.synced],
+  );
+
+  // Bootstrap collab doc from markdown when the Y.Doc is empty after sync.
+  useEffect(() => {
+    if (!collabMode || !collab.synced || !editor) return;
+    bootstrapIfEmptyRef.current(editor);
+    updateSectionAwarenessRef.current(editor);
+  }, [collabMode, collab.synced, editor]);
+
+  // Remote edit highlight (600ms fade per ui-design.md §9).
+  useEffect(() => {
+    if (!collabMode || !editor) return;
+
+    const handleTransaction = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      if (!transaction.docChanged) return;
+      if (!isChangeOrigin(transaction as Parameters<typeof isChangeOrigin>[0])) return;
+      const root = editor.view.dom.closest(".doc-sheet");
+      if (!root) return;
+      root.classList.add("remote-edit-flash");
+      window.setTimeout(() => root.classList.remove("remote-edit-flash"), 600);
+    };
+
+    editor.on("transaction", handleTransaction);
+    return () => {
+      editor.off("transaction", handleTransaction);
+    };
+  }, [collabMode, editor]);
 
   // Track mouse position via ref for CSS-based visibility.
   const mouseOverTableOrMenu = useRef(false);
@@ -144,16 +217,17 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     return () => document.removeEventListener("mousemove", handleGlobalMouseMove);
   }, []);
 
-  // Force-flush on editor blur.
+  // Force-flush on editor blur (Phase 1 only).
   useEffect(() => {
     editor?.on("blur", () => {
+      if (collabMode) return;
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
       performSave();
     });
-  }, [editor]);
+  }, [editor, collabMode]);
 
   // Force-flush on beforeunload.
   useEffect(() => {
@@ -275,8 +349,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const editorRef = useRef(editor);
   editorRef.current = editor;
 
-  // WebSocket client for real-time sync.
+  // WebSocket client for real-time sync (Phase 1 only).
   useEffect(() => {
+    if (collabMode) return;
     const client = new WsClient({
       docId: id,
       callbacks: {
@@ -320,7 +395,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     return () => {
       client.disconnect();
     };
-  }, [id]); // Only reconnect when doc id changes.
+  }, [id, collabMode]); // Only reconnect when doc id changes.
 
   // Table action handlers.
   const handleAddRowAbove = useCallback(() => {
@@ -389,9 +464,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const connectionIndicator = (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-        connectionStatus === "connected"
+        (collabMode ? collab.status === "connected" : connectionStatus === "connected")
           ? "text-success"
-          : connectionStatus === "reconnecting"
+          : (collabMode ? collab.status === "connecting" || collab.status === "reconnecting" : connectionStatus === "reconnecting")
             ? "text-warning"
             : "text-text-subtle"
       }`}
@@ -399,18 +474,33 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     >
       <span
         className={`inline-block h-2 w-2 rounded-full ${
-          connectionStatus === "connected"
+          (collabMode ? collab.status === "connected" : connectionStatus === "connected")
             ? "bg-success"
-            : connectionStatus === "reconnecting"
+            : (collabMode ? collab.status === "connecting" || collab.status === "reconnecting" : connectionStatus === "reconnecting")
               ? "animate-pulse bg-warning"
               : "bg-text-subtle"
         }`}
       />
-      {connectionStatus === "connected"
-        ? "Live"
-        : connectionStatus === "reconnecting"
-          ? "Reconnecting…"
-          : "Offline"}
+      {collabMode
+        ? collab.status === "connected"
+          ? "Collaborative"
+          : collab.status === "connecting"
+            ? "Connecting…"
+            : collab.status === "reconnecting"
+              ? "Reconnecting…"
+              : "Offline"
+        : connectionStatus === "connected"
+          ? "Live"
+          : connectionStatus === "reconnecting"
+            ? "Reconnecting…"
+            : "Offline"}
+    </span>
+  );
+
+  const collabSaveIndicator = (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-success" aria-live="polite">
+      <span className="inline-block h-2 w-2 rounded-full bg-success" />
+      {collab.synced ? "Synced" : "Syncing…"}
     </span>
   );
 
@@ -431,9 +521,16 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           <span className="text-sm font-medium text-text">{id.replace(/-/g, " ")}</span>
         </div>
         <div className="flex items-center gap-3">
-          {saveIndicator}
+          {collabMode ? collabSaveIndicator : saveIndicator}
           {connectionIndicator}
+          {collabMode && (
+            <PresenceStack
+              provider={collab.collab?.provider ?? null}
+              revision={collab.awarenessRevision}
+            />
+          )}
           <ThemeToggle current={theme} onToggle={toggleTheme} />
+          {!collabMode && (
           <button
             onClick={handleSave}
             disabled={saveStatus.state === "saving"}
@@ -446,11 +543,12 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
             </svg>
             Save
           </button>
+          )}
         </div>
       </div>
 
       {/* Conflict banner */}
-      {conflict && (
+      {!collabMode && conflict && (
         <ConflictBanner
           onReload={async () => {
             try {
@@ -529,6 +627,13 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[768px] px-4 py-10 sm:px-8">
           <div className="doc-sheet animate-fade-up rounded-xl px-6 py-12 sm:px-14 sm:py-16">
+            {collabMode && (
+              <SoftLockHint
+                provider={collab.collab?.provider ?? null}
+                revision={collab.awarenessRevision}
+                activeSectionId={collab.activeSectionId}
+              />
+            )}
             <style>{`
               .ProseMirror {
                 border: none !important;

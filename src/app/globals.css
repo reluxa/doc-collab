@@ -473,3 +473,47 @@ body.table-menu-visible [data-table-bubble-menu] {
   }
 }
 
+/* Phase 2 collaboration carets (ui-design.md §6.9) */
+.collaboration-carets__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid var(--collaboration-caret-color, #4f46e5);
+  pointer-events: none;
+  word-break: normal;
+}
+
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  background-color: var(--collaboration-caret-color, #4f46e5);
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.collaboration-carets__selection {
+  background-color: color-mix(in srgb, var(--collaboration-caret-color, #4f46e5) 18%, transparent);
+}
+
+/* Remote edit highlight fade (ui-design.md §9) */
+@keyframes remote-edit-flash-keyframes {
+  from {
+    background-color: color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.doc-sheet.remote-edit-flash {
+  animation: remote-edit-flash-keyframes 600ms ease-out;
+}
+

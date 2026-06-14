@@ -27,7 +27,10 @@ export default function RootLayout({
         {/* Server-rendered config for the browser WS client. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.__DOC_COLLAB_CONFIG=${JSON.stringify({ wsToken: WS_TOKEN })}`,
+            __html: `window.__DOC_COLLAB_CONFIG=${JSON.stringify({
+              wsToken: WS_TOKEN,
+              collab: process.env.NEXT_PUBLIC_COLLAB === "1",
+            })}`,
           }}
         />
         <ThemeProvider>

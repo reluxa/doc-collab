@@ -16,6 +16,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["server.ts", "src/lib/**/*.ts", "src/types/**/*.ts"],
+  "include": ["server.ts", "src/collab-server.ts", "src/lib/**/*.ts", "src/types/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/app/**/*", "src/components/**/*", "src/lib/pdf.tsx"]
 }

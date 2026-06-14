@@ -11,6 +11,7 @@ import http from "node:http";
 import path from "node:path";
 
 import { DOCS_ROOT, HOST, PORT } from "./src/lib/config";
+import { setupHocuspocusCollab } from "./src/lib/collab/hocuspocus";
 import { setupWebSocketServer, broadcast, type DocChangedEvent } from "./src/lib/realtime";
 
 // ---------------------------------------------------------------------------
@@ -100,15 +101,16 @@ async function main(): Promise<void> {
     handle(req, res);
   });
 
-  // Attach WebSocket server to the same HTTP server.
+  // Attach WebSocket servers to the same HTTP server.
   setupWebSocketServer(server);
+  setupHocuspocusCollab(server);
 
   // Start file watcher.
   await setupFileWatcher();
 
   server.listen(PORT, HOST, () => {
     console.log(
-      `✓ Server ready at http://${HOST}:${PORT} (ws://${HOST}:${PORT}/ws)`,
+      `✓ Server ready at http://${HOST}:${PORT} (ws://${HOST}:${PORT}/ws, collab ws://${HOST}:${PORT}/ws/collab)`,
     );
   });
 }

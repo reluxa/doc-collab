@@ -30,6 +30,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `npm run start:mcp` | Start compiled MCP server |
 | `npm test` | Run unit + integration tests |
 | `npm run cypress` | Run E2E tests |
+| `npm run cypress:collab` | Run collaborative editing E2E tests (requires `npm run dev` with collab enabled) |
 
 ## Production
 

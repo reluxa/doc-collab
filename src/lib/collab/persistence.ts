@@ -4,18 +4,32 @@
  * reload and CRDT history).
  *
  * Called by Hocuspocus `onStoreDocument` hook (debounced 400ms, max 30s).
- * Uses the `md-bridge` from Story 11 to serialize `Y.Doc` → Markdown.
+ * Uses the `md-bridge` from Story 11 to serialize section-structured docs,
+ * or the live Tiptap `default` fragment when present.
  *
  * Tombstone GC is triggered on `.ydoc` snapshot to bound memory growth.
  */
 
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import * as Y from "yjs";
+import { getSchema } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import { TiptapTransformer } from "@hocuspocus/transformer";
+import { defaultMarkdownSerializer } from "prosemirror-markdown";
 
-import { DOCS_ROOT } from "../config";
 import { resolveDocPath } from "../security";
-import { yDocToMarkdown } from "./md-bridge";
+import { yDocToMarkdown, markdownToYDoc } from "./md-bridge";
+import { COLLAB_FIELD } from "./constants";
+
+/** StarterKit schema used for headless Markdown serialization. */
+const COLLAB_SCHEMA = getSchema([
+  StarterKit.configure({
+    undoRedo: false,
+    codeBlock: false,
+    link: false,
+    underline: false,
+  }),
+]);
 
 // ---------------------------------------------------------------------------
 // File paths
@@ -35,9 +49,6 @@ export function ydocPath(id: string): string {
 
 /**
  * Load a `.ydoc` snapshot from disk.
- *
- * @param id  Document id (filename without extension).
- * @returns   Binary update bytes, or `null` if no snapshot exists.
  */
 export async function loadYDocSnapshot(id: string): Promise<Uint8Array | null> {
   const filePath = ydocPath(id);
@@ -50,27 +61,56 @@ export async function loadYDocSnapshot(id: string): Promise<Uint8Array | null> {
 }
 
 // ---------------------------------------------------------------------------
+// Serialize
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialize the live Tiptap `default` fragment to Markdown, if present.
+ * Uses prosemirror-markdown (no DOM) so this is safe on the Node server.
+ */
+export function yDocDefaultToMarkdown(doc: Y.Doc): string | null {
+  if (!doc.share.has(COLLAB_FIELD)) return null;
+
+  const json = TiptapTransformer.fromYdoc(doc, COLLAB_FIELD);
+  if (!json?.content?.length) return null;
+
+  try {
+    const node = COLLAB_SCHEMA.nodeFromJSON(json);
+    return defaultMarkdownSerializer.serialize(node).trimEnd();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Choose the best Markdown serialization for a `Y.Doc`.
+ */
+export function serializeDocToMarkdown(doc: Y.Doc): string {
+  return yDocDefaultToMarkdown(doc) ?? yDocToMarkdown(doc);
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
 /**
  * Persist a `Y.Doc` to both `.md` and `.ydoc` on disk.
- *
- * - `.md`: canonical Markdown (via `yDocToMarkdown`), the git/agent artifact
- * - `.ydoc`: binary CRDT snapshot (`Y.encodeStateAsUpdate`) for fast reload
- *
- * @param id     Document id.
- * @param doc    The `Y.Doc` to persist.
  */
 export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
   const mdPath = resolveDocPath(id);
   const ydocFilePath = ydocPath(id);
 
-  // Serialize to Markdown.
-  const md = yDocToMarkdown(doc);
+  // Trigger tombstone GC before snapshotting.
+  if (doc.gc) {
+    doc.gc = true;
+  }
+
+  const md = serializeDocToMarkdown(doc);
   await fs.writeFile(mdPath, md, "utf-8");
 
-  // Encode and write binary snapshot.
   const update = Y.encodeStateAsUpdate(doc);
   await fs.writeFile(ydocFilePath, Buffer.from(update));
 }
+
+/** Re-export for tests that use the section schema directly. */
+export { markdownToYDoc };
