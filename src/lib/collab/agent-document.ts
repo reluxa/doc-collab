@@ -51,6 +51,9 @@ export function readCollabMarkdown(doc: Y.Doc): string {
 
 /** Apply a full-document Markdown update as CRDT-merged Yjs updates. */
 export function applyCollabMarkdown(doc: Y.Doc, markdown: string): number {
+  const current = serializeDocToMarkdown(doc);
+  if (current === markdown) return 0;
+
   if (doc.share.has(COLLAB_FIELD)) {
     applyDefaultFragmentMarkdown(doc, markdown);
   }
@@ -142,6 +145,7 @@ export function reconcileExternalMarkdownIntoDoc(
   const liveMarkdown = readCollabMarkdown(doc);
   const persistedMarkdown = getLastPersistedMarkdown(documentId);
   const merged = mergeExternalMarkdown(liveMarkdown, diskMarkdown, persistedMarkdown);
+  if (merged === liveMarkdown) return 0;
   return applyCollabMarkdown(doc, merged);
 }
 

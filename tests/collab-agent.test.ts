@@ -18,6 +18,7 @@ import {
   reconcileExternalMarkdownIntoDoc,
   updateCollabSection,
 } from "@/lib/collab/agent-document";
+import { markdownToYDoc } from "@/lib/collab/md-bridge";
 import {
   isPersistenceEcho,
   markPersistenceWrite,
@@ -306,5 +307,20 @@ describe("Story 13 — no persistence reconciliation feedback loop", () => {
     const live = persisted.replace("Footer text", "Unpersisted live footer");
     const merged = mergeExternalMarkdown(live, persisted, persisted);
     expect(merged).toContain("Unpersisted live footer");
+  });
+
+  it("applyCollabMarkdown is a no-op when markdown matches live doc", () => {
+    const doc = markdownToYDoc(SECTION_DOC);
+    const changed = applyCollabMarkdown(doc, SECTION_DOC);
+    expect(changed).toBe(0);
+    doc.destroy();
+  });
+
+  it("reconcileExternalMarkdownIntoDoc skips when disk matches live", () => {
+    const doc = markdownToYDoc(SECTION_DOC);
+    markPersistenceWrite("noop-doc", SECTION_DOC);
+    const changed = reconcileExternalMarkdownIntoDoc(doc, "noop-doc", SECTION_DOC);
+    expect(changed).toBe(0);
+    doc.destroy();
   });
 });

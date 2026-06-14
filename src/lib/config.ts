@@ -31,3 +31,8 @@ export const WS_TOKEN =
           .join("");
       })()
     : "dev-token-7f3a9b2c1d4e5f6a8b9c0d1e2f3a4b5c");
+
+/** Phase 2 CRDT editor (default on). Set `NEXT_PUBLIC_COLLAB=0` to use Phase 1 REST editing. */
+export function isCollabEditorEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_COLLAB !== "0";
+}

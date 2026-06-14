@@ -46,13 +46,17 @@ async function setupFileWatcher(): Promise<void> {
       "./src/lib/collab/reconcile-external"
     );
     const { isPersistenceEcho } = await import("./src/lib/collab/persist-echo");
+    const { isApiWriteEcho } = await import("./src/lib/api-write-echo");
 
     try {
       const doc = await readDocument(id);
 
-      if (!isPersistenceEcho(id, doc.content)) {
-        await reconcileDocumentFromDisk(id, doc.content);
+      if (isPersistenceEcho(id, doc.content) || isApiWriteEcho(id, doc.etag)) {
+        // Own save echo — skip reconcile and WS broadcast (Phase 1 auto-save loop).
+        return;
       }
+
+      await reconcileDocumentFromDisk(id, doc.content);
 
       const event: DocChangedEvent = {
         type: "doc-changed",

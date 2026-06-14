@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { WS_TOKEN } from "@/lib/config";
+import { WS_TOKEN, isCollabEditorEnabled } from "@/lib/config";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   description: "Collaborative document editor",
 };
 
+/** WS_TOKEN must come from runtime env (systemd/.env), not build-time static HTML. */
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,7 +32,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `window.__DOC_COLLAB_CONFIG=${JSON.stringify({
               wsToken: WS_TOKEN,
-              collab: process.env.NEXT_PUBLIC_COLLAB === "1",
+              collab: isCollabEditorEnabled(),
             })}`,
           }}
         />

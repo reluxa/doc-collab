@@ -10,6 +10,7 @@ import {
   NotFoundError,
 } from "./errors";
 import { invalidateDocumentListCache } from "./document-list-cache";
+import { markApiWrite } from "./api-write-echo";
 import { resolveDocPath } from "./security";
 import type { DocumentContent, DocumentId, DocumentMeta } from "../types/document";
 
@@ -194,6 +195,7 @@ export async function writeDocument(
     await fs.writeFile(filePath, content, "utf-8");
     invalidateDocumentListCache();
     const newETag = await computeETag(filePath);
+    markApiWrite(id, newETag);
     return { id, content, etag: newETag };
   });
 }

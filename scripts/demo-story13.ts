@@ -1,5 +1,5 @@
 /**
- * Interactive Story 13 demo — run while `NEXT_PUBLIC_COLLAB=1 npm run dev` is up.
+ * Interactive Story 13 demo — run while `npm run dev` is up.
  *
  * Usage: npx tsx scripts/demo-story13.ts
  */
@@ -222,6 +222,6 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error("\nDemo failed:", err);
-  console.error("\nMake sure the dev server is running:\n  NEXT_PUBLIC_COLLAB=1 npm run dev");
+  console.error("\nMake sure the dev server is running:\n  npm run dev");
   process.exit(1);
 });

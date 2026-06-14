@@ -43,6 +43,13 @@ import { PRESENCE_COLORS } from "@/client/collab-provider";
 
 const lowlight = createLowlight(common);
 
+/** Compare markdown ignoring whitespace drift from serialization. */
+function isOwnSaveLag(disk: string, live: string): boolean {
+  if (disk === live) return true;
+  const compact = (s: string) => s.replace(/\s+/g, "");
+  return compact(live).startsWith(compact(disk));
+}
+
 // Debounce interval for auto-saves (ms).
 const SAVE_DEBOUNCE_MS = 400;
 
@@ -102,9 +109,16 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Current content for comparison.
   const currentContentRef = useRef(initialContent);
+  const etagRef = useRef(initialEtag);
+  etagRef.current = etag;
+  /** Timestamp of last local keystroke — guards against watcher/setContent races. */
+  const lastLocalEditRef = useRef(0);
+  const saveInFlightRef = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const lastSaveCompletedAtRef = useRef(0);
+  const performSaveRef = useRef<() => Promise<void>>(async () => {});
 
-  const collabExtensionsReady =
-    collabMode && !!collab.collab && collab.synced;
+  const collabExtensionsReady = collabMode && !!collab.collab;
 
   const editor = useEditor(
     {
@@ -159,8 +173,9 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
         TableCell,
       ],
       immediatelyRender: false,
-      content: collabExtensionsReady && collab.synced ? undefined : (initialContent || undefined),
+      content: collabExtensionsReady ? undefined : (initialContent || undefined),
       onUpdate: ({ editor: ed }) => {
+        lastLocalEditRef.current = Date.now();
         if (collabMode) {
           collab.updateSectionAwareness(ed);
           return;
@@ -180,11 +195,11 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
 
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-          performSave();
+          void performSaveRef.current();
         }, SAVE_DEBOUNCE_MS);
       },
     },
-    [collabExtensionsReady, collab.synced],
+    [collabExtensionsReady],
   );
 
   // Bootstrap collab doc from markdown when the Y.Doc is empty after sync.
@@ -263,6 +278,10 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
 
   const performSave = useCallback(async () => {
     if (!editor) return;
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
 
     const storage = editor.storage as unknown as Record<string, unknown>;
     const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
@@ -272,6 +291,8 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
       return;
     }
 
+    const savedMarkdown = markdown;
+    saveInFlightRef.current = true;
     setSaveStatus({ state: "saving" });
 
     try {
@@ -279,13 +300,23 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "If-Match": etag,
+          "If-Match": etagRef.current,
         },
-        body: JSON.stringify({ content: markdown }),
+        body: JSON.stringify({ content: savedMarkdown }),
       });
+
+      const latestMarkdown = (
+        editor.storage as unknown as Record<string, unknown>
+      ).markdown as { getMarkdown: () => string };
+      const stillEditing = latestMarkdown.getMarkdown() !== savedMarkdown;
 
       if (res.status === 409) {
         const data = await res.json();
+        if (data.etag) {
+          setEtag(data.etag);
+          etagRef.current = data.etag;
+        }
+
         if (keepMineRef.current) {
           // Overwrite remote changes with local edits.
           const retryRes = await fetch(`/api/documents/${id}`, {
@@ -294,18 +325,60 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
               "Content-Type": "application/json",
               "If-Match": data.etag,
             },
-            body: JSON.stringify({ content: markdown }),
+            body: JSON.stringify({ content: latestMarkdown.getMarkdown() }),
           });
           if (retryRes.ok) {
             const retryData = await retryRes.json();
             setEtag(retryData.etag);
-            setSaveStatus({ state: "saved" });
-            setDirty(false);
-            currentContentRef.current = markdown;
+            etagRef.current = retryData.etag;
+            const afterRetry = latestMarkdown.getMarkdown();
+            const retryStillEditing = afterRetry !== savedMarkdown;
+            setDirty(retryStillEditing);
+            setSaveStatus({ state: retryStillEditing ? "idle" : "saved" });
+            if (!retryStillEditing) {
+              currentContentRef.current = savedMarkdown;
+            }
             keepMineRef.current = false;
+            lastSaveCompletedAtRef.current = Date.now();
+            setConflict(null);
             return;
           }
         }
+
+        // Stale If-Match from overlapping auto-saves — retry once when disk matches our attempt.
+        const serverContent = typeof data.content === "string" ? data.content : "";
+        const latest = latestMarkdown.getMarkdown();
+        const canAutoRetry =
+          !keepMineRef.current &&
+          (serverContent === savedMarkdown ||
+            isOwnSaveLag(serverContent, latest));
+
+        if (canAutoRetry) {
+          const autoRetry = await fetch(`/api/documents/${id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "If-Match": data.etag,
+            },
+            body: JSON.stringify({ content: latest }),
+          });
+          if (autoRetry.ok) {
+            const retryData = await autoRetry.json();
+            setEtag(retryData.etag);
+            etagRef.current = retryData.etag;
+            const afterRetry = latestMarkdown.getMarkdown();
+            const retryStillEditing = afterRetry !== savedMarkdown;
+            setDirty(retryStillEditing);
+            setSaveStatus({ state: retryStillEditing ? "idle" : "saved" });
+            if (!retryStillEditing) {
+              currentContentRef.current = savedMarkdown;
+            }
+            lastSaveCompletedAtRef.current = Date.now();
+            setConflict(null);
+            return;
+          }
+        }
+
         setConflict(data.error || "Document was modified by another writer");
         setSaveStatus({ state: "error" });
         return;
@@ -315,13 +388,26 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
 
       const data = await res.json();
       setEtag(data.etag);
-      setSaveStatus({ state: "saved" });
-      setDirty(false);
-      currentContentRef.current = markdown;
+      etagRef.current = data.etag;
+      setDirty(stillEditing);
+      setSaveStatus({ state: stillEditing ? "idle" : "saved" });
+      setConflict(null);
+      if (!stillEditing) {
+        currentContentRef.current = savedMarkdown;
+      }
+      lastSaveCompletedAtRef.current = Date.now();
     } catch {
       setSaveStatus({ state: "error" });
+    } finally {
+      saveInFlightRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        void performSaveRef.current();
+      }
     }
-  }, [editor, id, etag, saveStatus.state]);
+  }, [editor, id, saveStatus.state]);
+
+  performSaveRef.current = performSave;
 
   const handleSave = useCallback(() => {
     if (saveTimerRef.current) {
@@ -375,8 +461,44 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           const isDirty = dirtyRef.current;
           const currentEditor = editorRef.current;
 
-          // Show conflict banner if we have unsaved changes.
+          // Ignore echoes while a save is in flight (watcher can beat the HTTP response).
+          if (saveInFlightRef.current) return;
+
+          // Our own save already updated etag — ignore the watcher echo.
+          if (event.version && event.version === etagRef.current) return;
+
+          // User typed recently; a save/watcher round-trip must not reset selection.
+          if (Date.now() - lastLocalEditRef.current < 1_500) return;
+
+          // Recent auto-save — watcher echo is not an external edit.
+          if (Date.now() - lastSaveCompletedAtRef.current < 2_000) return;
+
+          const editorMarkdown = currentEditor
+            ? (
+                currentEditor.storage as unknown as Record<string, unknown>
+              ).markdown as { getMarkdown: () => string } | undefined
+            : undefined;
+
+          // Show conflict banner only when disk has a genuine external edit.
           if (event.origin === "server-watcher" && isDirty) {
+            try {
+              const res = await fetch(`/api/documents/${id}`);
+              if (res.ok) {
+                const data = await res.json();
+                const live = editorMarkdown?.getMarkdown() ?? currentContentRef.current;
+                const disk = data.content as string;
+
+                // Own auto-save lag: disk is a prefix of unsaved local edits.
+                if (isOwnSaveLag(disk, live)) {
+                  setEtag(data.etag);
+                  etagRef.current = data.etag;
+                  setConflict(null);
+                  return;
+                }
+              }
+            } catch {
+              // Fall through to conflict banner.
+            }
             setConflict("This document was changed elsewhere.");
             return;
           }
@@ -390,10 +512,19 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
                 // Skip setContent when content hasn't actually changed.
                 // setContent rebuilds the ProseMirror doc tree which resets
                 // the cursor selection — avoid it when the content is the same.
-                if (data.content === currentContentRef.current) return;
+                const liveMarkdown = editorMarkdown?.getMarkdown();
+                if (
+                  data.content === currentContentRef.current ||
+                  data.content === liveMarkdown
+                ) {
+                  setEtag(data.etag);
+                  etagRef.current = data.etag;
+                  return;
+                }
                 currentContentRef.current = data.content;
                 setEtag(data.etag);
-                currentEditor?.commands.setContent(data.content);
+                etagRef.current = data.etag;
+                currentEditor?.commands.setContent(data.content, { emitUpdate: false });
                 setSaveStatus({ state: "saved" });
               }
             } catch {
@@ -572,6 +703,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
               if (res.ok) {
                 const data = await res.json();
                 setEtag(data.etag);
+                etagRef.current = data.etag;
                 editorRef.current?.commands.setContent(data.content);
                 currentContentRef.current = data.content;
                 setSaveStatus({ state: "saved" });
@@ -672,7 +804,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
                 </button>
                 <VirtualizedSectionView sections={parsedSections} />
               </div>
-            ) : editor ? (
+            ) : editor && (!collabMode || collab.synced || !editor.isEmpty) ? (
               <EditorContent editor={editor} />
             ) : (
               <SheetSkeleton />

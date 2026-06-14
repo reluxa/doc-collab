@@ -11,6 +11,7 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import { IndexeddbPersistence } from "y-indexeddb";
 
 import { COLLAB_WS_PATH } from "@/lib/collab/constants";
+import { isCollabEditorEnabled } from "@/lib/config";
 
 /** Options for creating a collab provider. */
 export interface CollabProviderOptions {
@@ -106,17 +107,14 @@ export function getCollaborators(
 }
 
 export function isCollabEnabled(): boolean {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_COLLAB === "1") {
-    return true;
-  }
   if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("collab")) return params.get("collab") === "1";
+
     const config = (window as unknown as Record<string, unknown>).__DOC_COLLAB_CONFIG as
       | { collab?: boolean }
       | undefined;
-    if (config?.collab) return true;
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("collab")) return params.get("collab") === "1";
+    if (typeof config?.collab === "boolean") return config.collab;
   }
-  return false;
+  return isCollabEditorEnabled();
 }

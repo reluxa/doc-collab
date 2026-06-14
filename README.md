@@ -14,7 +14,7 @@ npm install
 npm run dev:all   # starts web + WS server and MCP server together
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser. The editor uses **collab mode (Yjs CRDT)** by default. For Phase 1 REST editing, open a doc with `?collab=0` or set `NEXT_PUBLIC_COLLAB=0`.
 
 ## Scripts
 
@@ -30,7 +30,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `npm run start:mcp` | Start compiled MCP server |
 | `npm test` | Run unit + integration tests |
 | `npm run cypress` | Run E2E tests |
-| `npm run cypress:collab` | Run collaborative editing E2E tests (requires `npm run dev` with collab enabled) |
+| `npm run cypress:collab` | Run collaborative editing E2E tests (requires `npm run dev`) |
 
 ## Production
 
