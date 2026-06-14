@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
+const extraDevOrigins = process.env.ALLOWED_DEV_ORIGINS
+  ? process.env.ALLOWED_DEV_ORIGINS.split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+  : [];
+
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Required when browsing via WSL IP from Windows (e.g. 172.17.x.x).
+  allowedDevOrigins: ["127.0.0.1", "localhost", ...extraDevOrigins],
   turbopack: {
     resolveAlias: {
       // Dedupe yjs so Hocuspocus + Tiptap Collaboration share one instance.

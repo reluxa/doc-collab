@@ -236,7 +236,12 @@ class McpRpcClient {
 function startMcpServer(docsDir: string) {
   const server = spawn("npx", ["tsx", "mcp-server/server.ts"], {
     cwd: path.resolve(__dirname, ".."),
-    env: { ...process.env, DOCUMENTS_DIR: docsDir, NODE_ENV: "test" },
+    env: {
+      ...process.env,
+      DOCUMENTS_DIR: docsDir,
+      NODE_ENV: "test",
+      MCP_COLLAB: "0",
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -282,7 +287,7 @@ describe("MCP server — JSON-RPC integration", () => {
     expect(client.server.exitCode).toBeNull();
   });
 
-  it("lists all 5 tools with correct names", async () => {
+  it("lists all document tools with correct names", async () => {
     const res = await client.listTools();
     const names = res.result.tools.map(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic MCP tool schema
@@ -292,12 +297,14 @@ describe("MCP server — JSON-RPC integration", () => {
       expect.arrayContaining([
         "list_documents",
         "read_document",
+        "read_section",
         "create_document",
         "update_document",
+        "update_section",
         "delete_document",
       ]),
     );
-    expect(names).toHaveLength(5);
+    expect(names).toHaveLength(7);
   });
 
   it("list_documents returns empty when no docs exist", async () => {

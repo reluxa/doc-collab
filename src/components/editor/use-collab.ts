@@ -126,8 +126,14 @@ export function useCollab({
 
     if (instance.provider.synced) setSynced(true);
 
-    void instance.persistence.whenSynced.then(() => {
-      setSynced(true);
+    // IndexedDB can hang in some browsers; do not block on it indefinitely.
+    void Promise.race([
+      instance.persistence.whenSynced,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, 5_000);
+      }),
+    ]).then(() => {
+      if (instance.provider.synced) setSynced(true);
     });
 
     return () => {

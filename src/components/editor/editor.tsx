@@ -642,7 +642,13 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
                 padding: 0 !important;
               }
             `}</style>
-            <EditorContent editor={editor} />
+            {editor ? (
+              <EditorContent editor={editor} />
+            ) : (
+              <p className="text-sm text-text-muted animate-pulse" role="status">
+                Loading editor…
+              </p>
+            )}
           </div>
         </div>
       </div>

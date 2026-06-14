@@ -20,6 +20,7 @@ import { defaultMarkdownSerializer } from "prosemirror-markdown";
 import { resolveDocPath } from "../security";
 import { yDocToMarkdown, markdownToYDoc } from "./md-bridge";
 import { COLLAB_FIELD } from "./constants";
+import { markPersistenceWrite } from "./persist-echo";
 
 /** StarterKit schema used for headless Markdown serialization. */
 const COLLAB_SCHEMA = getSchema([
@@ -107,6 +108,8 @@ export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
 
   const md = serializeDocToMarkdown(doc);
   await fs.writeFile(mdPath, md, "utf-8");
+
+  markPersistenceWrite(id, md);
 
   const update = Y.encodeStateAsUpdate(doc);
   await fs.writeFile(ydocFilePath, Buffer.from(update));

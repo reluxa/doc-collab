@@ -11,12 +11,12 @@ Bring the agent into the conflict-free model: agent edits apply as Yjs transacti
 
 ## Scope / Tasks
 
-- [ ] `mcp-server/collab-peer.ts`: connect the MCP server to the shared `Y.Doc` as a Yjs peer (via Hocuspocus provider).
-- [ ] Route `update_document`/`update_section` writes through the peer so agent edits apply as Yjs updates that merge with concurrent human edits.
-- [ ] Add `read_section(name, section_id)` / `update_section(name, section_id, content)` MCP tools operating at section granularity.
-- [ ] External-edit reconciliation: when a `.md` file changes on disk outside the editor, run Story 11 `applyMarkdownDiff` to merge changed sections into the live `Y.Doc` instead of clobbering.
-- [ ] Keep `read_document`/`update_document` semantics stable (full-doc), now CRDT-backed.
-- [ ] Tests: agent + human concurrent same-section edit converge; external `.md` edit during live session merges.
+- [x] `mcp-server/collab-peer.ts`: connect the MCP server to the shared `Y.Doc` as a Yjs peer (via Hocuspocus provider).
+- [x] Route `update_document`/`update_section` writes through the peer so agent edits apply as Yjs updates that merge with concurrent human edits.
+- [x] Add `read_section(name, section_id)` / `update_section(name, section_id, content)` MCP tools operating at section granularity.
+- [x] External-edit reconciliation: when a `.md` file changes on disk outside the editor, run Story 11 `applyMarkdownDiff` to merge changed sections into the live `Y.Doc` instead of clobbering.
+- [x] Keep `read_document`/`update_document` semantics stable (full-doc), now CRDT-backed.
+- [x] Tests: agent + human concurrent same-section edit converge; external `.md` edit during live session merges.
 
 ## Out of scope
 
@@ -29,8 +29,8 @@ Bring the agent into the conflict-free model: agent edits apply as Yjs transacti
 
 ## Acceptance criteria
 
-- [ ] **Given** a human and the agent edit the **same section** at the same time, **when** both submit, **then** the `Y.Doc` converges with both contributions and no data loss.
-- [ ] **Given** the agent calls `update_section`, **then** only that section changes and concurrent edits elsewhere are preserved.
-- [ ] **Given** a `.md` file is edited via git/manually during a live session, **then** the changed sections merge into the `Y.Doc` (no clobber of in-editor work) and browsers reflect it.
-- [ ] No persistence↔reconciliation feedback loop occurs (verified by no oscillating writes).
-- [ ] Concurrency tests pass.
+- [x] **Given** a human and the agent edit the **same section** at the same time, **when** both submit, **then** the `Y.Doc` converges with both contributions and no data loss.
+- [x] **Given** the agent calls `update_section`, **then** only that section changes and concurrent edits elsewhere are preserved.
+- [x] **Given** a `.md` file is edited via git/manually during a live session, **then** the changed sections merge into the `Y.Doc` (no clobber of in-editor work) and browsers reflect it.
+- [x] No persistence↔reconciliation feedback loop occurs (verified by no oscillating writes).
+- [x] Concurrency tests pass.

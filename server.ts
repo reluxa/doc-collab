@@ -8,6 +8,8 @@
  */
 
 import http from "node:http";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import path from "node:path";
 
 import { DOCS_ROOT, HOST, PORT } from "./src/lib/config";
@@ -32,15 +34,23 @@ async function setupFileWatcher(): Promise<void> {
   });
 
   watcher.on("change", async (filePath: string) => {
-    // Extract document id from filename (strip .md extension).
     const basename = path.basename(filePath);
     if (!basename.endsWith(".md")) return;
     const id = basename.slice(0, -3);
 
-    // Compute current ETag for the changed file.
     const { readDocument } = await import("./src/lib/documents");
+    const { reconcileDocumentFromDisk } = await import(
+      "./src/lib/collab/reconcile-external"
+    );
+    const { isPersistenceEcho } = await import("./src/lib/collab/persist-echo");
+
     try {
       const doc = await readDocument(id);
+
+      if (!isPersistenceEcho(id, doc.content)) {
+        await reconcileDocumentFromDisk(id, doc.content);
+      }
+
       const event: DocChangedEvent = {
         type: "doc-changed",
         id,
@@ -85,6 +95,32 @@ async function setupFileWatcher(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Next.js dev HMR (Turbopack/Webpack)
+// ---------------------------------------------------------------------------
+
+/**
+ * Forward `/_next/webpack-hmr` upgrades to Next.js.
+ * Required when using a custom HTTP server alongside our own WebSocket paths.
+ */
+function setupNextDevUpgradeHandler(
+  httpServer: http.Server,
+  upgradeHandler: (
+    req: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+  ) => Promise<void>,
+): void {
+  httpServer.on("upgrade", (request, socket, head) => {
+    const pathname = new URL(
+      request.url ?? "/",
+      `http://${request.headers.host}`,
+    ).pathname;
+    if (!pathname.startsWith("/_next/webpack-hmr")) return;
+    void upgradeHandler(request, socket, head);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 
@@ -104,6 +140,9 @@ async function main(): Promise<void> {
   // Attach WebSocket servers to the same HTTP server.
   setupWebSocketServer(server);
   setupHocuspocusCollab(server);
+  if (dev) {
+    setupNextDevUpgradeHandler(server, app.getUpgradeHandler());
+  }
 
   // Start file watcher.
   await setupFileWatcher();

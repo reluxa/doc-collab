@@ -166,7 +166,10 @@ export function applyMarkdownDiff(doc: Y.Doc, newMd: string): number {
   });
 
   // Reconcile IDs — recover existing IDs even if anchors were lost.
-  const reconciled = reconcileSectionIds(newSections, currentSections);
+  const reconciled =
+    currentSections.length === 0
+      ? newSections
+      : reconcileSectionIds(newSections, currentSections);
 
   // Determine which sections changed, were added, or were removed.
   const currentIdSet = new Set(currentIds);

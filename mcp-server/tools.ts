@@ -1,8 +1,8 @@
 /**
  * MCP tool and resource definitions for document CRUD operations.
  *
- * Every tool delegates to `lib/documents.ts` so that ID validation,
- * path-traversal protection, and ETag logic are shared with the web API.
+ * Phase 2 (Story 13): reads and writes route through the Hocuspocus CRDT
+ * peer when available; filesystem + ETag remain the fallback and version source.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,7 +15,15 @@ import {
   writeDocument,
   deleteDocument,
   NotFoundError,
+  ConflictError,
 } from "../src/lib/documents";
+import {
+  isMcpCollabEnabled,
+  peerReadDocument,
+  peerReadSection,
+  peerUpdateDocument,
+  peerUpdateSection,
+} from "./collab-peer";
 
 // ---------------------------------------------------------------------------
 // Resource URI scheme: doc:///<id>
@@ -26,22 +34,62 @@ function docUri(id: string): string {
   return `doc://${id}`;
 }
 
+async function readDocumentContent(name: string): Promise<{ content: string; etag: string }> {
+  if (isMcpCollabEnabled()) {
+    try {
+      const [content, disk] = await Promise.all([
+        peerReadDocument(name),
+        readDocument(name),
+      ]);
+      return { content, etag: disk.etag };
+    } catch {
+      // Collab server unavailable — fall back to disk.
+    }
+  }
+
+  const doc = await readDocument(name);
+  return { content: doc.content, etag: doc.etag };
+}
+
+async function updateDocumentContent(
+  name: string,
+  content: string,
+  expectedVersion?: string,
+): Promise<{ etag: string }> {
+  if (expectedVersion) {
+    const current = await readDocument(name);
+    if (current.etag !== expectedVersion) {
+      throw new ConflictError(
+        "Document was modified by another writer (etag mismatch)",
+      );
+    }
+  }
+
+  if (isMcpCollabEnabled()) {
+    try {
+      await peerUpdateDocument(name, content);
+      const disk = await readDocument(name);
+      return { etag: disk.etag };
+    } catch {
+      // Collab server unavailable — fall back to disk write.
+    }
+  }
+
+  const current = await readDocument(name);
+  const written = await writeDocument(name, content, {
+    ifMatch: expectedVersion ?? current.etag,
+  });
+  return { etag: written.etag };
+}
+
 // ---------------------------------------------------------------------------
 // Tool registration
 // ---------------------------------------------------------------------------
 
 /**
  * Register all MCP tools and resources on the given server.
- *
- * Resources are declared with a template so the agent can read individual
- * documents.  Each tool validates its input via the shared `resolveDocPath`
- * (called inside the lib functions).
  */
 export function registerTools(server: McpServer): void {
-  // ---- Resources (per-document, dynamic template) ----
-  // The list callback enumerates all documents so resources/list returns them
-  // and resources/read resolves the template variables correctly.
-
   server.registerResource(
     "document",
     new ResourceTemplate("doc://{id}", {
@@ -62,10 +110,9 @@ export function registerTools(server: McpServer): void {
       mimeType: "text/markdown",
     },
     async (uri, variables) => {
-      // URI template variables can be string | string[]; we expect a single id.
       const id = Array.isArray(variables.id) ? variables.id[0] : variables.id;
       try {
-        const doc = await readDocument(id);
+        const doc = await readDocumentContent(id);
         return {
           contents: [
             {
@@ -83,8 +130,6 @@ export function registerTools(server: McpServer): void {
       }
     },
   );
-
-  // ---- Tools ----
 
   server.registerTool(
     "list_documents",
@@ -126,19 +171,64 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ name }) => {
-      const doc = await readDocument(name);
+      const doc = await readDocumentContent(name);
       return {
         content: [
           {
             type: "text",
             text: JSON.stringify(
-              { id: doc.id, content: doc.content, version: doc.etag },
+              { id: name, content: doc.content, version: doc.etag },
               null,
               2,
             ),
           },
         ],
       };
+    },
+  );
+
+  server.registerTool(
+    "read_section",
+    {
+      description:
+        "Read a single section from a document by stable section id (from <!-- sec:... --> anchors).",
+      inputSchema: {
+        name: z.string().describe("Document id"),
+        section_id: z.string().describe("Stable section id"),
+      },
+    },
+    async ({ name, section_id }) => {
+      if (isMcpCollabEnabled()) {
+        try {
+          const section = await peerReadSection(name, section_id);
+          const disk = await readDocument(name);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    id: name,
+                    section_id: section.id,
+                    heading: section.heading,
+                    body: section.body,
+                    markdown: section.markdown,
+                    version: disk.etag,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (err: unknown) {
+          if (!(err instanceof NotFoundError)) throw err;
+        }
+      }
+
+      throw new Error(
+        `Section "${section_id}" not found or collab server unavailable for "${name}".`,
+      );
     },
   );
 
@@ -155,6 +245,13 @@ export function registerTools(server: McpServer): void {
     },
     async ({ name, content }) => {
       const doc = await createDocument(name, content);
+      if (isMcpCollabEnabled()) {
+        try {
+          await peerUpdateDocument(name, content);
+        } catch {
+          // Disk copy exists; collab will bootstrap on first connect.
+        }
+      }
       return {
         content: [
           {
@@ -194,18 +291,15 @@ export function registerTools(server: McpServer): void {
     },
     async ({ name, content, expected_version }) => {
       if (expected_version) {
-        // Optimistic concurrency path.
-        const doc = await writeDocument(name, content, {
-          ifMatch: expected_version,
-        });
+        const result = await updateDocumentContent(name, content, expected_version);
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify(
                 {
-                  id: doc.id,
-                  version: doc.etag,
+                  id: name,
+                  version: result.etag,
                   message: `Updated document "${name}"`,
                 },
                 null,
@@ -216,12 +310,8 @@ export function registerTools(server: McpServer): void {
         };
       }
 
-      // Last-write-wins path: read current etag first, then write.
       try {
-        const current = await readDocument(name);
-        const doc = await writeDocument(name, content, {
-          ifMatch: current.etag,
-        });
+        const result = await updateDocumentContent(name, content);
         console.warn(
           `[last-write-wins] update_document("${name}") — expected_version not supplied`,
         );
@@ -231,8 +321,8 @@ export function registerTools(server: McpServer): void {
               type: "text",
               text: JSON.stringify(
                 {
-                  id: doc.id,
-                  version: doc.etag,
+                  id: name,
+                  version: result.etag,
                   message: `Updated document "${name}" (last-write-wins)`,
                 },
                 null,
@@ -242,13 +332,50 @@ export function registerTools(server: McpServer): void {
           ],
         };
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          throw err;
-        }
+        if (err instanceof NotFoundError) throw err;
         throw new Error(
           `Conflict: document "${name}" was modified concurrently. Supply expected_version for optimistic concurrency.`,
         );
       }
+    },
+  );
+
+  server.registerTool(
+    "update_section",
+    {
+      description:
+        "Update a single section's body in a document. Other sections are preserved.",
+      inputSchema: {
+        name: z.string().describe("Document id"),
+        section_id: z.string().describe("Stable section id"),
+        content: z.string().describe("New section body (Markdown)"),
+      },
+    },
+    async ({ name, section_id, content }) => {
+      if (!isMcpCollabEnabled()) {
+        throw new Error("update_section requires MCP_COLLAB (collab server running).");
+      }
+
+      await peerUpdateSection(name, section_id, content);
+      const disk = await readDocument(name);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                id: name,
+                section_id,
+                version: disk.etag,
+                message: `Updated section "${section_id}" in "${name}"`,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     },
   );
 
