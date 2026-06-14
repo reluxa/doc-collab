@@ -42,13 +42,17 @@ describe("Story 14 — document list cache", () => {
   });
 
   it("reuses cache until invalidated", async () => {
-    const dir = path.join(tmpRoot, "cache-isolated");
+    const dir = path.join(tmpRoot, `cache-${Date.now()}`);
+    fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     process.env.DOCUMENTS_DIR = dir;
+    resetDocumentListCache();
 
     const cache = await import("@/lib/document-list-cache");
     fs.writeFileSync(path.join(dir, "a.md"), "# A\n");
     const first = await cache.listDocumentsCached();
+    expect(first).toHaveLength(1);
+
     fs.writeFileSync(path.join(dir, "b.md"), "# B\n");
     const stale = await cache.listDocumentsCached();
     expect(stale).toHaveLength(first.length);
@@ -56,6 +60,7 @@ describe("Story 14 — document list cache", () => {
     cache.invalidateDocumentListCache();
     const fresh = await cache.listDocumentsCached();
     expect(fresh.length).toBeGreaterThan(first.length);
+    expect(fresh).toHaveLength(2);
   });
 });
 
