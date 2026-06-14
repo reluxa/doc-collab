@@ -38,16 +38,53 @@ function waitForSynced(provider: HocuspocusProvider, timeoutMs = 15_000): Promis
   });
 }
 
-function mergeParagraph(doc: Y.Doc, text: string): void {
-  const patch = TiptapTransformer.toYdoc(
-    {
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text }] }],
-    },
-    COLLAB_FIELD,
-  );
+function mergeDocumentContent(doc: Y.Doc, json: { type: string; content: unknown[] }): void {
+  const patch = TiptapTransformer.toYdoc(json, COLLAB_FIELD);
   Y.applyUpdate(doc, Y.encodeStateAsUpdate(patch));
   patch.destroy();
+}
+
+function paragraphDoc(text: string) {
+  return {
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  };
+}
+
+function mergeParagraph(doc: Y.Doc, text: string): void {
+  mergeDocumentContent(doc, paragraphDoc(text));
+}
+
+function twoSectionDocument(sectionABody: string, sectionBBody: string) {
+  return {
+    type: "doc",
+    content: [
+      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Section A" }] },
+      { type: "paragraph", content: [{ type: "text", text: sectionABody }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Section B" }] },
+      { type: "paragraph", content: [{ type: "text", text: sectionBBody }] },
+    ],
+  };
+}
+
+function replaceParagraphAt(doc: Y.Doc, paragraphIndex: number, text: string): void {
+  const existing = TiptapTransformer.fromYdoc(doc, COLLAB_FIELD) ?? {
+    type: "doc",
+    content: [],
+  };
+  const content = Array.isArray(existing.content) ? [...existing.content] : [];
+  let paragraphCount = 0;
+  for (let i = 0; i < content.length; i += 1) {
+    const block = content[i] as { type?: string };
+    if (block.type !== "paragraph") continue;
+    if (paragraphCount === paragraphIndex) {
+      content[i] = { type: "paragraph", content: [{ type: "text", text }] };
+      mergeDocumentContent(doc, { type: "doc", content });
+      return;
+    }
+    paragraphCount += 1;
+  }
+  throw new Error(`Paragraph index ${paragraphIndex} not found`);
 }
 
 function appendParagraph(doc: Y.Doc, text: string): void {
@@ -133,6 +170,58 @@ describe("Hocuspocus CRDT convergence", () => {
 
         expect(textA).toContain("Peer A paragraph");
         expect(textA).toContain("Peer B paragraph");
+        expect(textB).toBe(textA);
+      } finally {
+        providerA.destroy();
+        providerB.destroy();
+        docA.destroy();
+        docB.destroy();
+      }
+    },
+    30_000,
+  );
+
+  it(
+    "merges edits in different sections without interference",
+    async () => {
+      const url = `ws://127.0.0.1:${port}/?token=${encodeURIComponent(WS_TOKEN)}`;
+      const tag = `section-${Date.now()}`;
+      const sectionABase = `Body A ${tag}`;
+      const sectionBBase = `Body B ${tag}`;
+
+      const docA = new Y.Doc({ gc: true });
+      const docB = new Y.Doc({ gc: true });
+
+      const providerA = new HocuspocusProvider({
+        url,
+        name: `${DOC_NAME}-sections`,
+        document: docA,
+        token: WS_TOKEN,
+      });
+      const providerB = new HocuspocusProvider({
+        url,
+        name: `${DOC_NAME}-sections`,
+        document: docB,
+        token: WS_TOKEN,
+      });
+
+      try {
+        await Promise.all([waitForSynced(providerA), waitForSynced(providerB)]);
+
+        mergeDocumentContent(docA, twoSectionDocument(sectionABase, sectionBBase));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+
+        replaceParagraphAt(docA, 0, `${sectionABase} edited-by-A`);
+        replaceParagraphAt(docB, 1, `${sectionBBase} edited-by-B`);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        const textA = readPlainText(docA);
+        const textB = readPlainText(docB);
+
+        expect(textA).toContain("edited-by-A");
+        expect(textA).toContain("edited-by-B");
+        expect(textA).toContain(sectionABase);
+        expect(textA).toContain(sectionBBase);
         expect(textB).toBe(textA);
       } finally {
         providerA.destroy();

@@ -109,4 +109,103 @@ describe("Collaborative editing", () => {
       expect(resp.body.content).to.contain(persistedText);
     });
   });
+
+  it("merges edits in different sections without interference", () => {
+    const tag = `${UNIQUE_PREFIX}-sections-${Date.now()}`;
+    const sectionABody = `Body A ${tag}`;
+    const sectionBBody = `Body B ${tag}`;
+
+    visitCollabEditor();
+    waitForCollabConnected();
+    clearEditor();
+
+    cy.task("collabSetTwoSectionDocument", {
+      documentId: COLLAB_DOC_ID,
+      sectionABody,
+      sectionBBody,
+    });
+
+    cy.get(".ProseMirror", { timeout: 10_000 }).should("contain.text", sectionBBody);
+
+    cy.contains(".ProseMirror", sectionBBody).click();
+    cy.get(".ProseMirror").type(" edited-in-browser");
+
+    cy.task("collabReplaceParagraphAt", {
+      documentId: COLLAB_DOC_ID,
+      paragraphIndex: 0,
+      text: `${sectionABody} edited-by-remote`,
+    });
+
+    cy.get(".ProseMirror", { timeout: 10_000 }).should("contain.text", "edited-by-remote");
+    cy.get(".ProseMirror").should("contain.text", "edited-in-browser");
+    cy.get(".ProseMirror").should("contain.text", sectionBBody);
+    cy.contains("This document was changed elsewhere").should("not.exist");
+
+    cy.task("collabReadPlainText", { documentId: COLLAB_DOC_ID }).then((plain) => {
+      expect(plain).to.include("edited-by-remote");
+      expect(plain).to.include("edited-in-browser");
+    });
+  });
+
+  it("merges offline edits after reconnect via y-indexeddb", () => {
+    const offlineDocId = `${COLLAB_DOC_ID}-offline`;
+    const offlineText = `${UNIQUE_PREFIX}-offline-${Date.now()}`;
+
+    cy.request({
+      method: "DELETE",
+      url: `/api/documents/${offlineDocId}`,
+      failOnStatusCode: false,
+    });
+    cy.request({
+      method: "POST",
+      url: "/api/documents",
+      body: { id: offlineDocId, content: "" },
+    });
+
+    cy.visit(`/editor/${offlineDocId}?collab=1`);
+    cy.get(".ProseMirror", { timeout: 20_000 }).should("be.visible");
+    waitForCollabConnected();
+    clearEditor();
+    cy.get(".ProseMirror").type(`${offlineText}-online`);
+
+    // Reload with collab WebSocket blocked — y-indexeddb restores local Y.Doc state.
+    cy.visit(`/editor/${offlineDocId}?collab=1`, {
+      onBeforeLoad(win) {
+        const OriginalWebSocket = win.WebSocket;
+        cy.stub(win, "WebSocket").callsFake((url: string | URL, protocols?: string | string[]) => {
+          if (String(url).includes("/ws/collab")) {
+            const socket = {
+              readyState: 3,
+              close() {},
+              send() {},
+              addEventListener() {},
+              removeEventListener() {},
+            };
+            return socket as unknown as WebSocket;
+          }
+          return new OriginalWebSocket(url, protocols);
+        });
+      },
+    });
+
+    cy.get(".ProseMirror", { timeout: 20_000 }).should("contain.text", `${offlineText}-online`);
+    cy.get(".ProseMirror").click().type(` ${offlineText}-offline`);
+
+    // Reconnect for real and sync buffered edits to the server.
+    cy.visit(`/editor/${offlineDocId}?collab=1`);
+    cy.get(".ProseMirror", { timeout: 20_000 }).should("be.visible");
+    waitForCollabConnected();
+
+    cy.get(".ProseMirror").should("contain.text", `${offlineText}-offline`);
+    cy.task("collabReadPlainText", { documentId: offlineDocId }).should(
+      "include",
+      `${offlineText}-offline`,
+    );
+
+    cy.request({
+      method: "DELETE",
+      url: `/api/documents/${offlineDocId}`,
+      failOnStatusCode: false,
+    });
+  });
 });

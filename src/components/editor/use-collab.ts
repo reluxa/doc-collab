@@ -127,7 +127,7 @@ export function useCollab({
     if (instance.provider.synced) setSynced(true);
 
     void instance.persistence.whenSynced.then(() => {
-      if (instance.provider.synced) setSynced(true);
+      setSynced(true);
     });
 
     return () => {

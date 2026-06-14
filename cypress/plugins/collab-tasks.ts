@@ -28,6 +28,17 @@ interface CollabAppendParagraphOptions extends CollabTaskOptions {
   text: string;
 }
 
+interface CollabReplaceParagraphOptions extends CollabTaskOptions {
+  /** Zero-based index among top-level `paragraph` blocks in the document. */
+  paragraphIndex: number;
+  text: string;
+}
+
+interface CollabTwoSectionOptions extends CollabTaskOptions {
+  sectionABody: string;
+  sectionBBody: string;
+}
+
 function wsToken(): string {
   return process.env.WS_TOKEN ?? DEFAULT_WS_TOKEN;
 }
@@ -97,10 +108,45 @@ function paragraphDoc(text: string) {
   };
 }
 
-function mergeDocumentContent(target: Y.Doc, json: ReturnType<typeof paragraphDoc>): void {
+function mergeDocumentContent(
+  target: Y.Doc,
+  json: { type: string; content: unknown[] },
+): void {
   const patch = TiptapTransformer.toYdoc(json, COLLAB_FIELD);
   Y.applyUpdate(target, Y.encodeStateAsUpdate(patch));
   patch.destroy();
+}
+
+function replaceParagraphAt(doc: Y.Doc, paragraphIndex: number, text: string): void {
+  const existing = TiptapTransformer.fromYdoc(doc, COLLAB_FIELD) ?? {
+    type: "doc",
+    content: [],
+  };
+  const content = Array.isArray(existing.content) ? [...existing.content] : [];
+  let paragraphCount = 0;
+  for (let i = 0; i < content.length; i += 1) {
+    const block = content[i] as { type?: string };
+    if (block.type !== "paragraph") continue;
+    if (paragraphCount === paragraphIndex) {
+      content[i] = { type: "paragraph", content: [{ type: "text", text }] };
+      mergeDocumentContent(doc, { type: "doc", content });
+      return;
+    }
+    paragraphCount += 1;
+  }
+  throw new Error(`Paragraph index ${paragraphIndex} not found`);
+}
+
+function twoSectionDocument(sectionABody: string, sectionBBody: string) {
+  return {
+    type: "doc",
+    content: [
+      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Section A" }] },
+      { type: "paragraph", content: [{ type: "text", text: sectionABody }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Section B" }] },
+      { type: "paragraph", content: [{ type: "text", text: sectionBBody }] },
+    ],
+  };
 }
 
 export function registerCollabTasks(on: Cypress.PluginEvents, config: Cypress.PluginConfigOptions): void {
@@ -136,6 +182,32 @@ export function registerCollabTasks(on: Cypress.PluginEvents, config: Cypress.Pl
       return withCollabProvider({ documentId, baseUrl, token }, async (_provider, doc) => {
         const json = TiptapTransformer.fromYdoc(doc, COLLAB_FIELD);
         return prosemirrorJsonToPlainText(json);
+      });
+    },
+
+    collabReplaceParagraphAt({
+      documentId,
+      paragraphIndex,
+      text,
+      token,
+    }: CollabReplaceParagraphOptions) {
+      return withCollabProvider({ documentId, baseUrl, token }, async (_provider, doc) => {
+        replaceParagraphAt(doc, paragraphIndex, text);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return null;
+      });
+    },
+
+    collabSetTwoSectionDocument({
+      documentId,
+      sectionABody,
+      sectionBBody,
+      token,
+    }: CollabTwoSectionOptions) {
+      return withCollabProvider({ documentId, baseUrl, token }, async (_provider, doc) => {
+        mergeDocumentContent(doc, twoSectionDocument(sectionABody, sectionBBody));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        return null;
       });
     },
   });

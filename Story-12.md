@@ -30,7 +30,7 @@ Make live editing conflict-free for humans: host a Hocuspocus (Yjs) backend in t
 ## Acceptance criteria
 
 - [x] **Given** two browsers editing the **same section** concurrently, **when** both type, **then** edits merge with no data loss and both converge to identical content (no conflict prompt). _(Covered by `tests/collab-convergence.test.ts` and `cypress/e2e/collaboration.cy.ts`.)_
-- [ ] **Given** edits in different sections, **then** they apply independently with no interference.
-- [ ] **Given** a browser goes offline and edits, **when** it reconnects, **then** its edits merge in (via `y-indexeddb`).
+- [x] **Given** edits in different sections, **then** they apply independently with no interference. _(Covered by `tests/collab-convergence.test.ts` and `cypress/e2e/collaboration.cy.ts`.)_
+- [x] **Given** a browser goes offline and edits, **when** it reconnects, **then** its edits merge in (via `y-indexeddb`). _(Covered by `cypress/e2e/collaboration.cy.ts`.)_
 - [x] Collaborator cursors/presence are visible and match `ui-design.md` §6.9/§2.5 (human indigo, agent teal); an active section shows the soft-lock hint (§6.10) but the human can still edit.
 - [x] On idle, the `.md` on disk and a `.ydoc` snapshot reflect the current `Y.Doc`. _(Covered by `cypress/e2e/collaboration.cy.ts`.)_

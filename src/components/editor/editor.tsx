@@ -91,7 +91,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const currentContentRef = useRef(initialContent);
 
   const collabExtensionsReady =
-    collabMode && !!collab.collab && collab.status === "connected";
+    collabMode && !!collab.collab && collab.synced;
 
   const editor = useEditor(
     {
