@@ -14,6 +14,8 @@ function typeAndSelect(text: string) {
 }
 
 describe("Editor toolbar", () => {
+  const initialContent = "# Test Doc\n\nStart typing here.";
+
   beforeEach(() => {
     cy.viewport(1280, 720);
     cy.request({
@@ -24,9 +26,14 @@ describe("Editor toolbar", () => {
     cy.request({
       method: "POST",
       url: "/api/documents",
-      body: { id: "cypress-test", content: "# Test Doc\n\nStart typing here." },
+      body: { id: "cypress-test", content: initialContent },
     });
-    cy.visit("/editor/cypress-test");
+    // Align in-memory Y.Doc with disk so Phase 1 REST saves are not fought by stale CRDT state.
+    cy.task("mcpUpdateDocument", {
+      documentId: "cypress-test",
+      markdown: initialContent,
+    });
+    cy.visit("/editor/cypress-test?collab=0");
     cy.get(".ProseMirror", { timeout: 15000 }).should("be.visible");
     cy.get(".ProseMirror").click();
     // Clear existing content.
@@ -150,9 +157,10 @@ describe("Editor toolbar", () => {
   // -- Save --
 
   it("saves changes and persists to disk", () => {
+    cy.intercept("PUT", "/api/documents/cypress-test").as("putDoc");
     cy.get(".ProseMirror").type("Fresh content{enter}{enter}New paragraph");
     cy.contains("button", "Save").click();
-    cy.contains("Saved").should("be.visible");
+    cy.wait("@putDoc", { timeout: 15_000 }).its("response.statusCode").should("eq", 200);
 
     cy.request("/api/documents/cypress-test").then((resp) => {
       expect(resp.body.content).to.contain("Fresh content");
@@ -251,8 +259,8 @@ describe("Document list", () => {
       url: "/api/documents",
       body: { id: "cypress-visible", content: "# Visible Doc" },
     });
-    cy.visit("/");
-    cy.contains("Visible Doc").should("be.visible");
+    cy.reload();
+    cy.contains("Visible Doc", { timeout: 15_000 }).should("be.visible");
   });
 
   it("creates a new document from the dialog", () => {

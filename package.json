@@ -18,7 +18,7 @@
     "dev:collab": "tsx watch src/collab-server.ts",
     "lint": "eslint",
     "test": "vitest run",
-    "cypress": "cypress run --headed false",
+    "cypress": "cypress run",
     "cypress:collab": "cypress run --spec cypress/e2e/collaboration.cy.ts",
     "cypress:mcp-sync": "cypress run --spec cypress/e2e/mcp-browser-sync.cy.ts",
     "cypress:caret": "cypress run --spec cypress/e2e/caret-stability.cy.ts",
