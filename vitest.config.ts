@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     globals: false,
     include: ["tests/**/*.test.ts"],
+    setupFiles: ["tests/vitest.setup.ts"],
     coverage: {
       include: ["src/lib/**"],
       thresholds: { lines: 80 },
