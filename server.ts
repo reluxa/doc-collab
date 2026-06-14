@@ -13,6 +13,7 @@ import type { Duplex } from "node:stream";
 import path from "node:path";
 
 import { DOCS_ROOT, HOST, PORT } from "./src/lib/config";
+import { invalidateDocumentListCache } from "./src/lib/document-list-cache";
 import { setupHocuspocusCollab } from "./src/lib/collab/hocuspocus";
 import { setupWebSocketServer, broadcast, type DocChangedEvent } from "./src/lib/realtime";
 
@@ -37,6 +38,8 @@ async function setupFileWatcher(): Promise<void> {
     const basename = path.basename(filePath);
     if (!basename.endsWith(".md")) return;
     const id = basename.slice(0, -3);
+
+    invalidateDocumentListCache();
 
     const { readDocument } = await import("./src/lib/documents");
     const { reconcileDocumentFromDisk } = await import(
@@ -67,6 +70,7 @@ async function setupFileWatcher(): Promise<void> {
     const basename = path.basename(filePath);
     if (!basename.endsWith(".md")) return;
     const id = basename.slice(0, -3);
+    invalidateDocumentListCache();
     const { readDocument } = await import("./src/lib/documents");
     try {
       const doc = await readDocument(id);
@@ -85,6 +89,7 @@ async function setupFileWatcher(): Promise<void> {
     const basename = path.basename(filePath);
     if (!basename.endsWith(".md")) return;
     const id = basename.slice(0, -3);
+    invalidateDocumentListCache();
     broadcast({
       type: "doc-changed",
       id,

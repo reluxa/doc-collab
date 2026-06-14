@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { AnyExtension } from "@tiptap/core";
@@ -31,6 +31,12 @@ import { useCollab } from "./use-collab";
 import { PresenceStack, SoftLockHint } from "./presence-stack";
 import { isCollabEnabled } from "@/client/collab-provider";
 import { COLLAB_FIELD } from "@/lib/collab/constants";
+import { splitMarkdown } from "@/lib/collab/sections";
+import {
+  VirtualizedSectionView,
+  shouldVirtualizeSections,
+} from "./virtualized-section-view";
+import { SheetSkeleton } from "./sheet-skeleton";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { PRESENCE_COLORS } from "@/client/collab-provider";
@@ -73,6 +79,13 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   bootstrapIfEmptyRef.current = collab.bootstrapIfEmpty;
   const updateSectionAwarenessRef = useRef(collab.updateSectionAwareness);
   updateSectionAwarenessRef.current = collab.updateSectionAwareness;
+
+  const parsedSections = useMemo(
+    () => splitMarkdown(initialContent),
+    [initialContent],
+  );
+  const useVirtualizedLayout = shouldVirtualizeSections(parsedSections.length);
+  const [showFullEditor, setShowFullEditor] = useState(!useVirtualizedLayout);
 
   const [etag, setEtag] = useState(initialEtag);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ state: "saved" });
@@ -321,7 +334,10 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const handleExportPdf = useCallback(async () => {
     setExporting(true);
     try {
-      const res = await fetch(`/api/documents/${id}/pdf`);
+      const sectionParam = collab.activeSectionId
+        ? `?section=${encodeURIComponent(collab.activeSectionId)}`
+        : "";
+      const res = await fetch(`/api/documents/${id}/pdf${sectionParam}`);
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
 
       const blob = await res.blob();
@@ -340,7 +356,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     } finally {
       setExporting(false);
     }
-  }, [id, showToast]);
+  }, [id, showToast, collab.activeSectionId]);
 
   // Track mutable values via refs so callbacks don't capture stale state.
   const dirtyRef = useRef(false);
@@ -642,12 +658,33 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
                 padding: 0 !important;
               }
             `}</style>
-            {editor ? (
+            {useVirtualizedLayout && !showFullEditor ? (
+              <div className="space-y-4">
+                <p className="text-sm text-text-muted">
+                  Large document — showing on-screen sections only for performance.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowFullEditor(true)}
+                  className="text-sm font-medium text-brand-500 hover:text-brand-600"
+                >
+                  Open full editor
+                </button>
+                <VirtualizedSectionView sections={parsedSections} />
+              </div>
+            ) : editor ? (
               <EditorContent editor={editor} />
             ) : (
-              <p className="text-sm text-text-muted animate-pulse" role="status">
-                Loading editor…
-              </p>
+              <SheetSkeleton />
+            )}
+            {useVirtualizedLayout && showFullEditor && (
+              <button
+                type="button"
+                onClick={() => setShowFullEditor(false)}
+                className="mt-4 text-sm font-medium text-text-muted hover:text-text"
+              >
+                Back to section view
+              </button>
             )}
           </div>
         </div>

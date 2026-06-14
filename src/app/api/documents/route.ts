@@ -5,9 +5,9 @@ import {
   ConflictError,
   createDocument,
   ForbiddenError,
-  listDocuments,
   NotFoundError,
 } from "../../../lib/documents";
+import { listDocumentsCached } from "../../../lib/document-list-cache";
 import { ID_PATTERN } from "../../../lib/security";
 
 const createSchema = z.object({
@@ -35,7 +35,7 @@ function errorToResponse(err: unknown): Response {
 /** GET /api/documents — list all documents. */
 export async function GET(): Promise<Response> {
   try {
-    const docs = await listDocuments();
+    const docs = await listDocumentsCached();
     return Response.json(docs);
   } catch (err: unknown) {
     return errorToResponse(err);

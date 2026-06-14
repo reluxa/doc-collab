@@ -6,6 +6,7 @@ import {
   NotFoundError,
   readDocument,
 } from "@/lib/documents";
+import { extractSectionMarkdown } from "@/lib/collab/sections";
 import { parseMarkdown } from "@/lib/markdown";
 import { renderMarkdownToPdf } from "@/lib/pdf";
 
@@ -26,30 +27,32 @@ function errorToResponse(err: unknown): Response {
 /**
  * GET /api/documents/[id]/pdf
  *
- * Generate a PDF from the document's Markdown content and stream it back.
- *
- * Uses the server-side remark pipeline (shared with `lib/markdown.ts`) to
- * parse Markdown into an mdast tree, then maps nodes to @react-pdf/renderer
- * components. The PDF model is built in memory before bytes are emitted;
- * true chunked-from-source streaming is not supported by the library.
+ * Generate a PDF from the document's Markdown content.
+ * Optional `?section=<section_id>` exports a single section (Story 14).
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
     const { id } = await params;
+    const sectionId = request.nextUrl.searchParams.get("section") ?? undefined;
 
-    // Read the document via the shared lib (validates id, resolves path).
     const doc = await readDocument(id);
 
-    // Parse Markdown → mdast (server-side, independent of browser editor).
-    const tree = parseMarkdown(doc.content);
+    let markdown = doc.content;
+    if (sectionId) {
+      const sectionMd = extractSectionMarkdown(doc.content, sectionId);
+      if (!sectionMd) {
+        throw new NotFoundError(`Section not found: "${sectionId}"`);
+      }
+      markdown = sectionMd;
+    }
 
-    // Render mdast → PDF bytes.
-    // NOTE: renderToStream builds the document model in memory before
-    // emitting bytes. For MVP document sizes this is acceptable.
+    const tree = parseMarkdown(markdown);
     const pdfBytes = await renderMarkdownToPdf(tree);
+
+    const filename = sectionId ? `${id}-${sectionId}.pdf` : `${id}.pdf`;
 
     return new Response(
       pdfBytes.buffer.slice(
@@ -59,7 +62,7 @@ export async function GET(
       {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `inline; filename="${id}.pdf"`,
+          "Content-Disposition": `inline; filename="${filename}"`,
           "Content-Length": String(pdfBytes.byteLength),
         },
       },

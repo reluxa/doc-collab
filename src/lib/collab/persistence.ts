@@ -18,9 +18,11 @@ import { TiptapTransformer } from "@hocuspocus/transformer";
 import { defaultMarkdownSerializer } from "prosemirror-markdown";
 
 import { resolveDocPath } from "../security";
-import { yDocToMarkdown, markdownToYDoc } from "./md-bridge";
+import { yDocToMarkdown, markdownToYDoc, getSectionsFromDoc } from "./md-bridge";
 import { COLLAB_FIELD } from "./constants";
 import { markPersistenceWrite } from "./persist-echo";
+import { takeDirtySections } from "./section-dirty";
+import { replaceSectionsInMarkdown } from "./sections";
 
 /** StarterKit schema used for headless Markdown serialization. */
 const COLLAB_SCHEMA = getSchema([
@@ -101,12 +103,35 @@ export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
   const mdPath = resolveDocPath(id);
   const ydocFilePath = ydocPath(id);
 
-  // Trigger tombstone GC before snapshotting.
+  // Trigger tombstone GC before snapshotting (Story 14 — bound CRDT memory).
   if (doc.gc) {
     doc.gc = true;
   }
 
-  const md = serializeDocToMarkdown(doc);
+  const dirtyIds = takeDirtySections(doc);
+  const canIncremental =
+    dirtyIds.length > 0 && !doc.share.has(COLLAB_FIELD);
+
+  let md: string;
+  if (canIncremental) {
+    try {
+      const baseline = await fs.readFile(mdPath, "utf-8");
+      const replacements = getSectionsFromDoc(doc).filter((s) =>
+        dirtyIds.includes(s.id),
+      );
+      md = replaceSectionsInMarkdown(baseline, replacements);
+      if (process.env.PERSIST_LOG === "1") {
+        console.log(
+          `[persist] incremental ${id}: ${dirtyIds.length} section(s) [${dirtyIds.join(", ")}]`,
+        );
+      }
+    } catch {
+      md = serializeDocToMarkdown(doc);
+    }
+  } else {
+    md = serializeDocToMarkdown(doc);
+  }
+
   await fs.writeFile(mdPath, md, "utf-8");
 
   markPersistenceWrite(id, md);

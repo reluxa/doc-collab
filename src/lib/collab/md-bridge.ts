@@ -27,6 +27,7 @@ import {
   serializeSections,
   reconcileSectionIds,
 } from "./sections";
+import { markSectionsDirty } from "./section-dirty";
 import {
   createDoc,
   ensureSchema,
@@ -175,6 +176,7 @@ export function applyMarkdownDiff(doc: Y.Doc, newMd: string): number {
   const currentIdSet = new Set(currentIds);
   const newIdSet = new Set(reconciled.map((s) => s.id));
   let changed = 0;
+  const dirtyIds: string[] = [];
 
   doc.transact(() => {
     for (const section of reconciled) {
@@ -185,12 +187,14 @@ export function applyMarkdownDiff(doc: Y.Doc, newMd: string): number {
         addSection(doc, section.id);
         setSectionContent(doc, section.id, text);
         changed++;
+        dirtyIds.push(section.id);
       } else {
         // Existing section — check if content changed.
         const currentSection = currentSections.find((s) => s.id === section.id);
         if (currentSection && !sectionsEqual(currentSection, section)) {
           setSectionContent(doc, section.id, text);
           changed++;
+          dirtyIds.push(section.id);
         }
       }
     }
@@ -200,9 +204,14 @@ export function applyMarkdownDiff(doc: Y.Doc, newMd: string): number {
       if (!newIdSet.has(id)) {
         removeSection(doc, id);
         changed++;
+        dirtyIds.push(id);
       }
     }
   }, null);
+
+  if (dirtyIds.length > 0) {
+    markSectionsDirty(doc, dirtyIds);
+  }
 
   return changed;
 }

@@ -194,6 +194,46 @@ export function serializeSections(sections: Section[]): string {
   return parts.join("\n\n");
 }
 
+/**
+ * Replace specific sections in a Markdown document (Story 14 incremental persist).
+ * Unlisted sections are preserved verbatim from `baseMarkdown`.
+ */
+export function replaceSectionsInMarkdown(
+  baseMarkdown: string,
+  replacements: Section[],
+): string {
+  if (replacements.length === 0) return baseMarkdown;
+
+  const base = splitMarkdown(baseMarkdown);
+  const byId = new Map(replacements.map((s) => [s.id, s]));
+  const replaced = new Set<string>();
+
+  const merged = base.map((section) => {
+    const next = byId.get(section.id);
+    if (next) {
+      replaced.add(section.id);
+      return next;
+    }
+    return section;
+  });
+
+  for (const section of replacements) {
+    if (!replaced.has(section.id)) merged.push(section);
+  }
+
+  return serializeSections(merged);
+}
+
+/** Extract one section's Markdown (for per-section PDF export). */
+export function extractSectionMarkdown(
+  fullMarkdown: string,
+  sectionId: string,
+): string | null {
+  const section = splitMarkdown(fullMarkdown).find((s) => s.id === sectionId);
+  if (!section) return null;
+  return serializeSections([section]);
+}
+
 // ---------------------------------------------------------------------------
 // Section ID recovery (§11.3)
 //

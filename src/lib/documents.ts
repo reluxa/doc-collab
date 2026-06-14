@@ -9,6 +9,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "./errors";
+import { invalidateDocumentListCache } from "./document-list-cache";
 import { resolveDocPath } from "./security";
 import type { DocumentContent, DocumentId, DocumentMeta } from "../types/document";
 
@@ -151,6 +152,7 @@ export async function createDocument(
   await fs.mkdir(DOCS_ROOT, { recursive: true });
   await fs.writeFile(filePath, content, "utf-8");
 
+  invalidateDocumentListCache();
   const etag = await computeETag(filePath);
   return { id, content, etag };
 }
@@ -190,6 +192,7 @@ export async function writeDocument(
     }
 
     await fs.writeFile(filePath, content, "utf-8");
+    invalidateDocumentListCache();
     const newETag = await computeETag(filePath);
     return { id, content, etag: newETag };
   });
@@ -205,6 +208,7 @@ export async function deleteDocument(id: DocumentId): Promise<void> {
 
   try {
     await fs.unlink(filePath);
+    invalidateDocumentListCache();
   } catch (err: unknown) {
     if (isNotFound(err)) throw new NotFoundError(`Document not found: "${id}"`);
     throw err;

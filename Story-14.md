@@ -12,12 +12,12 @@ Apply the performance and resource optimizations enabled by the section model an
 
 ## Scope / Tasks
 
-- [ ] **Section-scoped rendering & lazy loading:** virtualize long documents; load section fragments on demand, showing the sheet skeleton/shimmer from `ui-design.md` §6.13 while a section loads (respect reduced-motion, §9).
-- [ ] **Incremental Markdown serialization:** re-serialize only dirty sections on persist (track per-section change flags in `md-bridge`).
-- [ ] **Per-section / streamed PDF:** render PDF section-by-section; allow exporting a single section.
-- [ ] **CRDT efficiency:** verify delta-encoded updates over the wire; schedule periodic `encodeStateAsUpdate` snapshots + tombstone GC to bound memory.
-- [ ] **Document-list caching:** cache `/api/documents` metadata, invalidated by watcher events instead of re-reading every file per request.
-- [ ] **Connection resilience & batching:** provider auto-reconnect with backoff; WS heartbeats; batch outbound broadcasts per tick.
+- [x] **Section-scoped rendering & lazy loading:** virtualize long documents; load section fragments on demand, showing the sheet skeleton/shimmer from `ui-design.md` §6.13 while a section loads (respect reduced-motion, §9).
+- [x] **Incremental Markdown serialization:** re-serialize only dirty sections on persist (track per-section change flags in `md-bridge`).
+- [x] **Per-section / streamed PDF:** render PDF section-by-section; allow exporting a single section.
+- [x] **CRDT efficiency:** verify delta-encoded updates over the wire; schedule periodic `encodeStateAsUpdate` snapshots + tombstone GC to bound memory.
+- [x] **Document-list caching:** cache `/api/documents` metadata, invalidated by watcher events instead of re-reading every file per request.
+- [x] **Connection resilience & batching:** provider auto-reconnect with backoff; WS heartbeats; batch outbound broadcasts per tick.
 
 ## Out of scope
 
@@ -30,9 +30,9 @@ Apply the performance and resource optimizations enabled by the section model an
 
 ## Acceptance criteria
 
-- [ ] **Given** a large document (e.g., 200+ sections), **when** opened, **then** only on-screen sections render initially and scrolling stays smooth (measured frame/interaction budget documented).
-- [ ] **Given** a single-section edit, **when** persistence runs, **then** only that section is re-serialized (verified via instrumentation/logs).
-- [ ] PDF export can target a single section and large-doc export streams progressively.
-- [ ] Memory for a long editing session stays bounded across snapshot/GC cycles (before/after figure recorded).
-- [ ] `/api/documents` is served from cache and invalidates correctly on file changes.
-- [ ] Existing correctness tests (round-trip, concurrency) still pass.
+- [x] **Given** a large document (e.g., 200+ sections), **when** opened, **then** only on-screen sections render initially and scrolling stays smooth (measured frame/interaction budget documented).
+- [x] **Given** a single-section edit, **when** persistence runs, **then** only that section is re-serialized (verified via instrumentation/logs).
+- [x] PDF export can target a single section and large-doc export streams progressively.
+- [x] Memory for a long editing session stays bounded across snapshot/GC cycles (before/after figure recorded).
+- [x] `/api/documents` is served from cache and invalidates correctly on file changes.
+- [x] Existing correctness tests (round-trip, concurrency) still pass.

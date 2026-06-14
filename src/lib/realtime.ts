@@ -33,11 +33,24 @@ interface Connection {
 let connections: Connection[] = [];
 let idCounter = 0;
 let wss: WebSocketServer | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Batched broadcasts — coalesce per tick (Story 14). */
+const pendingBroadcasts = new Map<string, DocChangedEvent>();
+let flushScheduled = false;
+
+const HEARTBEAT_MS = 30_000;
 
 /** Reset state (for testing). */
 export function resetState(): void {
   connections = [];
   idCounter = 0;
+  pendingBroadcasts.clear();
+  flushScheduled = false;
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
   if (wss) {
     wss.close();
     wss = null;
@@ -51,9 +64,6 @@ export function resetState(): void {
 /**
  * Create and configure the WebSocket server, attaching it to an existing
  * HTTP server via the `upgrade` event.
- *
- * @param httpServer - Node.js `http.Server` (or compatible)
- * @param onUpgrade - Called on every valid upgrade (for request logging, etc.)
  */
 export function setupWebSocketServer(
   httpServer: { on: (event: string, cb: (req: IncomingMessage, socket: unknown, head: Buffer) => void) => void },
@@ -61,13 +71,12 @@ export function setupWebSocketServer(
   wss = new WebSocketServer({ noServer: true });
 
   httpServer.on("upgrade", (request, socket, head) => {
-    // Only handle /ws; let Next.js HMR and other upgrades pass through.
     const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
     if (url.pathname !== "/ws") return;
     handleUpgrade(request, socket as unknown as Socket, head);
   });
 
-  wss.on("connection", (ws, request) => {
+  wss.on("connection", (ws) => {
     const id = `client-${++idCounter}`;
     const conn: Connection = { id, ws, subs: new Set() };
     connections.push(conn);
@@ -79,6 +88,8 @@ export function setupWebSocketServer(
           conn.subs.add(msg.ids);
         } else if (msg.type === "unsubscribe" && typeof msg.ids === "string") {
           conn.subs.delete(msg.ids);
+        } else if (msg.type === "pong") {
+          // Client heartbeat response (optional).
         }
       } catch {
         // Ignore malformed messages.
@@ -89,25 +100,43 @@ export function setupWebSocketServer(
       connections = connections.filter((c) => c.id !== id);
     });
   });
+
+  if (!heartbeatTimer) {
+    heartbeatTimer = setInterval(() => {
+      for (const conn of connections) {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          conn.ws.ping();
+        }
+      }
+    }, HEARTBEAT_MS);
+  }
 }
 
 /**
- * Broadcast a `doc-changed` event to all connected clients that are
- * subscribed to (or listening to all) the given document id.
- *
- * @param event - The event to broadcast
+ * Queue a `doc-changed` event for batched delivery (latest version wins per id).
  */
 export function broadcast(event: DocChangedEvent): void {
-  const payload = JSON.stringify(event);
-  for (const conn of connections) {
-    // Empty subs = subscribe to all; otherwise check specific doc.
-    const interested =
-      conn.subs.size === 0 || conn.subs.has(event.id);
-    if (!interested) continue;
-    // Skip the originator.
-    if (conn.id === event.origin) continue;
-    if (conn.ws.readyState === WebSocket.OPEN) {
-      conn.ws.send(payload);
+  pendingBroadcasts.set(event.id, event);
+  if (flushScheduled) return;
+  flushScheduled = true;
+  setImmediate(flushBroadcastQueue);
+}
+
+/** Flush pending broadcasts immediately (tests). */
+export function flushBroadcastQueue(): void {
+  flushScheduled = false;
+  const events = [...pendingBroadcasts.values()];
+  pendingBroadcasts.clear();
+
+  for (const event of events) {
+    const payload = JSON.stringify(event);
+    for (const conn of connections) {
+      const interested = conn.subs.size === 0 || conn.subs.has(event.id);
+      if (!interested) continue;
+      if (conn.id === event.origin) continue;
+      if (conn.ws.readyState === WebSocket.OPEN) {
+        conn.ws.send(payload);
+      }
     }
   }
 }
@@ -121,13 +150,6 @@ export function getConnectionCount(): number {
 // Upgrade handler
 // ---------------------------------------------------------------------------
 
-/**
- * Handle HTTP upgrade requests for WebSocket connections.
- * Called only for /ws path (other upgrades are passed through to Next.js).
- *
- * Validates the auth token (`?token=` or `Sec-WebSocket-Protocol`).
- * Rejects invalid upgrades with a 401 response.
- */
 function handleUpgrade(
   request: IncomingMessage,
   socket: Socket,
@@ -139,7 +161,6 @@ function handleUpgrade(
     (request.headers["sec-websocket-protocol"] as string | undefined);
 
   if (!token || token !== WS_TOKEN) {
-    // Reject with 401.
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;

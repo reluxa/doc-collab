@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   setupWebSocketServer,
   broadcast,
+  flushBroadcastQueue,
   getConnectionCount,
   resetState,
   type DocChangedEvent,
@@ -95,6 +96,7 @@ describe("broadcast", () => {
       version: "abc123",
       origin: "server-watcher",
     });
+    flushBroadcastQueue();
 
     const received = JSON.parse(await msgPromise);
     expect(received.type).toBe("doc-changed");
@@ -120,6 +122,7 @@ describe("broadcast", () => {
     });
 
     broadcast(event);
+    flushBroadcastQueue();
     expect(await noMessage).toBe(true);
     ws.close();
   });
@@ -143,14 +146,15 @@ describe("broadcast", () => {
     ws.close();
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    expect(() =>
+    expect(() => {
       broadcast({
         type: "doc-changed",
         id: "test",
         version: "v1",
         origin: "other",
-      }),
-    ).not.toThrow();
+      });
+      flushBroadcastQueue();
+    }).not.toThrow();
   });
 
   it("multiple clients receive the same broadcast", async () => {
@@ -166,6 +170,7 @@ describe("broadcast", () => {
       version: "v1",
       origin: "server-watcher",
     });
+    flushBroadcastQueue();
 
     const [r1, r2] = await Promise.all([msg1, msg2]);
     expect(JSON.parse(r1).id).toBe("shared-doc");
@@ -185,6 +190,7 @@ describe("broadcast", () => {
       version: "v1",
       origin: "server-watcher",
     });
+    flushBroadcastQueue();
 
     const received = JSON.parse(await msgPromise);
     expect(received.origin).toBe("server-watcher");
