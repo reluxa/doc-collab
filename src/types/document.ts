@@ -10,6 +10,8 @@ export interface DocumentMeta {
   id: DocumentId;
   title: string;
   modifiedAt: Date;
+  /** Number of saved versions for this document. */
+  versionCount?: number;
 }
 
 /** Document content returned by the read endpoint. */

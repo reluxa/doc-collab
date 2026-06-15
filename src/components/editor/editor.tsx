@@ -23,6 +23,7 @@ import { isChangeOrigin } from "@tiptap/extension-collaboration";
 
 import { Toolbar } from "./toolbar";
 import { ConflictBanner } from "./conflict-banner";
+import { VersionHistory } from "./version-history";
 import { WsClient, type ConnectionStatus } from "./ws-client";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -100,6 +101,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const [conflict, setConflict] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("offline");
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
 
@@ -275,6 +277,18 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [editor, id, etag, dirty]);
+
+  // Keyboard shortcut: Ctrl/Cmd+Shift+H to toggle version history.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "H") {
+        e.preventDefault();
+        setShowVersionHistory((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const performSave = useCallback(async () => {
     if (!editor) return;
@@ -677,6 +691,18 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
             />
           )}
           <ThemeToggle current={theme} onToggle={toggleTheme} />
+          {/* Version history button */}
+          <button
+            onClick={() => setShowVersionHistory(true)}
+            className="rounded-md p-1.5 text-text-subtle transition-colors hover:bg-surface-2 hover:text-text focus-visible:ring-2 focus-visible:ring-brand-500/35"
+            aria-label="Version history (Ctrl+Shift+H)"
+            title="Version history (Ctrl+Shift+H)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
           {!collabMode && (
           <button
             onClick={handleSave}
@@ -821,6 +847,28 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           </div>
         </div>
       </div>
+
+      {/* Version history modal */}
+      <VersionHistory
+        documentId={id}
+        open={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        onRestored={() => {
+          // Refresh the editor content after restore.
+          fetch(`/api/documents/${id}`)
+            .then((r) => r.json())
+            .then((data) => {
+              editor?.commands.setContent(data.content, { emitUpdate: false });
+              setEtag(data.etag);
+              etagRef.current = data.etag;
+              currentContentRef.current = data.content;
+              setSaveStatus({ state: "saved" });
+              setDirty(false);
+            })
+            .catch(() => {});
+          showToast("success", "Version restored");
+        }}
+      />
     </div>
   );
 }

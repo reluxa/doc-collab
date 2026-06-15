@@ -36,7 +36,15 @@ function errorToResponse(err: unknown): Response {
 export async function GET(): Promise<Response> {
   try {
     const docs = await listDocumentsCached();
-    return Response.json(docs);
+    const { getVersionCount } = await import("../../../lib/collab/versioning");
+    // Add version count to each document.
+    const docsWithCounts = await Promise.all(
+      docs.map(async (doc) => ({
+        ...doc,
+        versionCount: await getVersionCount(doc.id),
+      })),
+    );
+    return Response.json(docsWithCounts);
   } catch (err: unknown) {
     return errorToResponse(err);
   }

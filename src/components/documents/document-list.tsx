@@ -146,12 +146,19 @@ export function DocumentList({
 
               {/* Meta row */}
               <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-text-subtle">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  {formatModified(doc.modifiedAt as unknown as string)}
+                <div className="flex items-center gap-2 text-xs text-text-subtle">
+                  <div className="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    {formatModified(doc.modifiedAt as unknown as string)}
+                  </div>
+                  {doc.versionCount && doc.versionCount > 0 && (
+                    <span className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
+                      v{doc.versionCount}
+                    </span>
+                  )}
                 </div>
                 {/* Delete button - visible on hover */}
                 <button
