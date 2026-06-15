@@ -21,6 +21,7 @@ import { resolveDocPath } from "../security";
 import { yDocToMarkdown, markdownToYDoc, getSectionsFromDoc } from "./md-bridge";
 import { COLLAB_FIELD } from "./constants";
 import { markPersistenceWrite } from "./persist-echo";
+import { createVersion } from "./versioning";
 import { takeDirtySections } from "./section-dirty";
 import { replaceSectionsInMarkdown } from "./sections";
 
@@ -177,6 +178,18 @@ export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
 
   const update = Y.encodeStateAsUpdate(doc);
   await fs.writeFile(ydocFilePath, Buffer.from(update));
+
+  // Create a version snapshot after persist (user-save trigger).
+  try {
+    await createVersion(id, {
+      trigger: "user-save",
+      author: "human",
+      doc,
+      markdown: md,
+    });
+  } catch {
+    // Versioning is best-effort — never fail a persist because of it.
+  }
 }
 
 /** Re-export for tests that use the section schema directly. */

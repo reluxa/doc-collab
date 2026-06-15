@@ -196,6 +196,20 @@ export async function writeDocument(
     invalidateDocumentListCache();
     const newETag = await computeETag(filePath);
     markApiWrite(id, newETag);
+
+    // Create version snapshot inside the lock (best-effort, non-blocking).
+    try {
+      const { createVersion } = await import("./collab/versioning");
+      await createVersion(id, {
+        trigger: "user-save",
+        author: "human",
+        markdown: content,
+        etag: newETag,
+      });
+    } catch {
+      // Versioning is best-effort — never fail a write because of it.
+    }
+
     return { id, content, etag: newETag };
   });
 }
@@ -214,6 +228,14 @@ export async function deleteDocument(id: DocumentId): Promise<void> {
   } catch (err: unknown) {
     if (isNotFound(err)) throw new NotFoundError(`Document not found: "${id}"`);
     throw err;
+  }
+
+  // Also delete all version snapshots for this document.
+  try {
+    const { deleteVersions } = await import("./collab/versioning");
+    await deleteVersions(id);
+  } catch {
+    // Best-effort cleanup — the document itself is already gone.
   }
 }
 

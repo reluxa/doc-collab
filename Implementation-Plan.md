@@ -8,6 +8,7 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
 
 - **Phase 1 — Functional MVP (Stories 1–10):** a working editor + REST API + MCP server + real-time sync, with optimistic-concurrency (last-write-wins) conflict handling.
 - **Phase 2 — Conflict-free editing (Stories 11–14):** section-structured Yjs CRDT, collaboration server, agent-as-peer, and optimizations.
+- **Phase 3 — Versioning (Stories 15–16):** event-driven version snapshots, version history UI, and restore.
 
 ## Story index
 
@@ -27,6 +28,8 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
 | 12 | [Hocuspocus collaboration server & editor binding](./Story-12.md) | 3 d | 7, 11 |
 | 13 | [MCP collaboration peer & external-edit reconciliation](./Story-13.md) | 3 d | 9, 12 |
 | 14 | [Optimizations](./Story-14.md) | 2–3 d | 12, 13 |
+| 15 | [Version snapshot engine](./Story-15.md) | 2–3 d | 12, 13 |
+| 16 | [Version history UI & restore](./Story-16.md) | 2–3 d | 15 |
 
 ## Dependency graph (high level)
 
@@ -37,7 +40,7 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
    └─ 4 ─┴─ 5
          └─ 6
 4 ─ 11 ─ 12 ─ 13 ─ 14
-7 ─────── 12
+7 ─────── 12          15 ─ 16
 ```
 
 ## Conventions used in every story

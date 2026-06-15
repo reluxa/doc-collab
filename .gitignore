@@ -16,6 +16,8 @@ build/
 
 # Documents (user content)
 /documents/
+# Version snapshots (auto-generated)
+/__versions__/
 
 # Tests
 cypress/screenshots/

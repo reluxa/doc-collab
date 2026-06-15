@@ -11,6 +11,7 @@ import crossws from "crossws/adapters/node";
 import {
   Hocuspocus,
   type onAuthenticatePayload,
+  type onConnectPayload,
   type onDisconnectPayload,
   type onLoadDocumentPayload,
   type onStoreDocumentPayload,
@@ -23,6 +24,10 @@ import {
   loadYDocSnapshot,
   storeYDocSnapshot,
 } from "./persistence";
+import {
+  startPeriodicVersionTimer,
+  stopPeriodicVersionTimer,
+} from "./versioning";
 
 /** HTTP upgrade listener target (Node `http.Server`). */
 type HttpServer = {
@@ -33,6 +38,9 @@ type HttpServer = {
 };
 
 import { COLLAB_WS_PATH } from "./constants";
+
+/** Track per-document connection counts for periodic timer lifecycle. */
+const connectionCounts = new Map<string, number>();
 
 let hocuspocusInstance: Hocuspocus | null = null;
 
@@ -53,6 +61,29 @@ export function createHocuspocus(): Hocuspocus {
       }
     },
 
+    async onConnect(data: onConnectPayload) {
+      const doc = data.documentName;
+      const count = (connectionCounts.get(doc) ?? 0) + 1;
+      connectionCounts.set(doc, count);
+
+      // Start periodic version timer on first connection for this document.
+      // The timer reads the persisted .md on disk (last known good state).
+      // A newer persist may have happened between the timer check and now —
+      // the dedup guard in createVersion prevents duplicates.
+      if (count === 1) {
+        startPeriodicVersionTimer(doc, async () => {
+          try {
+            const { readDocument } = await import("../documents");
+            const { checkPeriodicSnapshot } = await import("./versioning");
+            const current = await readDocument(doc);
+            await checkPeriodicSnapshot(doc, current.content);
+          } catch {
+            // Best-effort periodic snapshot — never fail the server.
+          }
+        });
+      }
+    },
+
     async onLoadDocument(data: onLoadDocumentPayload) {
       const snapshot = await loadYDocSnapshot(data.documentName);
       if (snapshot) {
@@ -66,6 +97,14 @@ export function createHocuspocus(): Hocuspocus {
 
     async onDisconnect(data: onDisconnectPayload) {
       await storeYDocSnapshot(data.documentName, data.document);
+
+      // Decrement connection count; stop timer when last client disconnects.
+      const count = (connectionCounts.get(data.documentName) ?? 1) - 1;
+      connectionCounts.set(data.documentName, count);
+      if (count <= 0) {
+        connectionCounts.delete(data.documentName);
+        stopPeriodicVersionTimer(data.documentName);
+      }
     },
   });
 
@@ -124,7 +163,8 @@ export function setupHocuspocusCollab(httpServer: HttpServer): Hocuspocus {
   return hocuspocus;
 }
 
-/** Reset singleton (for tests). */
+/** Reset singleton and timer state (for tests). */
 export function resetHocuspocus(): void {
+  connectionCounts.clear();
   hocuspocusInstance = null;
 }

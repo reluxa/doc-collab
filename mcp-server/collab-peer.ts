@@ -16,6 +16,7 @@ import {
   updateCollabSection,
 } from "../src/lib/collab/agent-document";
 import { AGENT_PRESENCE_COLOR } from "../src/lib/collab/constants";
+import { createVersion } from "../src/lib/collab/versioning";
 
 const AGENT_NAME = "openclaw";
 const CONNECT_TIMEOUT_MS = 15_000;
@@ -95,6 +96,16 @@ export async function peerUpdateDocument(
     applyCollabMarkdown(doc, markdown);
     await new Promise((resolve) => setTimeout(resolve, 300));
   });
+  // Create a version snapshot after agent edit.
+  try {
+    await createVersion(documentId, {
+      trigger: "agent-edit",
+      author: "agent",
+      markdown,
+    });
+  } catch {
+    // Versioning is best-effort — never fail the agent write.
+  }
 }
 
 /** Read a single section from the live document. */
@@ -124,6 +135,17 @@ export async function peerUpdateSection(
     updateCollabSection(doc, sectionId, content);
     await new Promise((resolve) => setTimeout(resolve, 300));
   });
+  // Create a version snapshot after agent section edit.
+  try {
+    const currentMd = await peerReadDocument(documentId);
+    await createVersion(documentId, {
+      trigger: "agent-edit",
+      author: "agent",
+      markdown: currentMd,
+    });
+  } catch {
+    // Versioning is best-effort — never fail the agent write.
+  }
 }
 
 /** Whether MCP tools should use the CRDT peer (default: on). */
