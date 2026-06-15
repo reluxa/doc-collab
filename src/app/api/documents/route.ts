@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getVersionCount } from "../../../lib/collab/versioning";
 import {
   BadRequestError,
   ConflictError,
@@ -36,7 +37,6 @@ function errorToResponse(err: unknown): Response {
 export async function GET(): Promise<Response> {
   try {
     const docs = await listDocumentsCached();
-    const { getVersionCount } = await import("../../../lib/collab/versioning");
     // Add version count to each document.
     const docsWithCounts = await Promise.all(
       docs.map(async (doc) => ({
