@@ -16,7 +16,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import type * as Y from "yjs";
 import { z } from "zod";
 
 import { DOCS_ROOT } from "../config";
@@ -83,8 +82,8 @@ export interface VersionMeta {
 export interface CreateVersionOptions {
   trigger: VersionTrigger;
   author: VersionAuthor;
-  /** Optional Y.Doc for state vector + md serialization. */
-  doc?: Y.Doc;
+  /** Optional Y.Doc for state vector + md serialization (typed as unknown to avoid Yjs import). */
+  doc?: unknown;
   /** Optional pre-serialized Markdown (avoids re-serializing from Y.Doc). */
   markdown?: string;
   /** Optional pre-computed etag. */
@@ -350,7 +349,7 @@ export async function createVersion(
   let stateVector: string;
   if (opts.doc) {
     const Ymod = await import("yjs");
-    const sv = Ymod.encodeStateVector(opts.doc);
+    const sv = Ymod.encodeStateVector(opts.doc as any);
     stateVector = Buffer.from(sv).toString("base64");
   } else {
     stateVector = "";

@@ -1,14 +1,15 @@
 import { z } from "zod";
 
+import { getVersionCount } from "@/lib/collab/versioning-read";
 import {
   BadRequestError,
   ConflictError,
   createDocument,
   ForbiddenError,
   NotFoundError,
-} from "../../../lib/documents";
-import { listDocumentsCached } from "../../../lib/document-list-cache";
-import { ID_PATTERN } from "../../../lib/security";
+} from "@/lib/documents";
+import { listDocumentsCached } from "@/lib/document-list-cache";
+import { ID_PATTERN } from "@/lib/security";
 
 const createSchema = z.object({
   id: z.string().regex(ID_PATTERN, "Invalid document id"),
@@ -36,7 +37,6 @@ function errorToResponse(err: unknown): Response {
 export async function GET(): Promise<Response> {
   try {
     const docs = await listDocumentsCached();
-    const { getVersionCount } = await import("../../../lib/collab/versioning-read");
     // Add version count to each document.
     const docsWithCounts = await Promise.all(
       docs.map(async (doc) => ({

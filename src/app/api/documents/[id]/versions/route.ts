@@ -1,10 +1,9 @@
 import type { NextRequest } from "next/server";
 
-import {
-  createVersion,
-  listVersions,
-} from "@/lib/collab/versioning";
 import { readDocument } from "@/lib/documents";
+import {
+  listVersions,
+} from "@/lib/collab/versioning-read";
 import {
   BadRequestError,
   NotFoundError,
@@ -31,8 +30,7 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { id } = await params;
-    const { listVersions: listV } = await import("@/lib/collab/versioning-read");
-    const versions = await listV(id);
+    const versions = await listVersions(id);
     return Response.json(versions);
   } catch (err: unknown) {
     return errorToResponse(err);
@@ -52,6 +50,8 @@ export async function POST(
 
     const doc = await readDocument(id);
 
+    // Dynamic import: only loaded when POST is actually called.
+    const { createVersion } = await import("@/lib/collab/versioning");
     const version = await createVersion(id, {
       trigger: "manual",
       author: "human",
@@ -61,16 +61,14 @@ export async function POST(
 
     if (version === null) {
       // Content unchanged — return the last version.
-      const { listVersions: listV } = await import("@/lib/collab/versioning-read");
-      const last = await listV(id);
+      const last = await listVersions(id);
       return Response.json(
         { message: "No changes since last version", version: last[0] ?? null },
         { status: 200 },
       );
     }
 
-    const { listVersions: listV } = await import("@/lib/collab/versioning-read");
-    const versions = await listV(id);
+    const versions = await listVersions(id);
     return Response.json({ message: `Created version ${version}`, version: versions[0] });
   } catch (err: unknown) {
     return errorToResponse(err);

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 
-import { readVersion, createVersion } from "@/lib/collab/versioning";
+import { readVersion } from "@/lib/collab/versioning-read";
 import { readDocument } from "@/lib/documents";
 import { reconcileDocumentFromDisk } from "@/lib/collab/reconcile-external";
 import {
@@ -37,8 +37,7 @@ export async function GET(
   try {
     const { id, version } = await params;
     const versionNum = VersionParamSchema.parse(version);
-    const { readVersion: readV } = await import("@/lib/collab/versioning-read");
-    const record = await readV(id, versionNum);
+    const record = await readVersion(id, versionNum);
     return Response.json(record);
   } catch (err: unknown) {
     return errorToResponse(err);
@@ -58,8 +57,7 @@ export async function POST(
     const versionNum = VersionParamSchema.parse(version);
 
     // Read the version's Markdown.
-    const { readVersion: readV } = await import("@/lib/collab/versioning-read");
-    const record = await readV(id, versionNum);
+    const record = await readVersion(id, versionNum);
     const restoredMd = record.md;
 
     // Write the restored content to disk.
@@ -76,6 +74,7 @@ export async function POST(
 
     // Create a new version capturing the restored state.
     try {
+      const { createVersion } = await import("@/lib/collab/versioning");
       await createVersion(id, {
         trigger: "manual",
         author: "human",
