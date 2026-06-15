@@ -4,6 +4,7 @@ import {
   createVersion,
   listVersions,
 } from "@/lib/collab/versioning";
+import { readDocument } from "@/lib/documents";
 import {
   BadRequestError,
   NotFoundError,
@@ -30,7 +31,8 @@ export async function GET(
 ): Promise<Response> {
   try {
     const { id } = await params;
-    const versions = await listVersions(id);
+    const { listVersions: listV } = await import("@/lib/collab/versioning-read");
+    const versions = await listV(id);
     return Response.json(versions);
   } catch (err: unknown) {
     return errorToResponse(err);
@@ -48,8 +50,6 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Read current content for the snapshot.
-    const { readDocument } = await import("@/lib/documents");
     const doc = await readDocument(id);
 
     const version = await createVersion(id, {
@@ -61,14 +61,16 @@ export async function POST(
 
     if (version === null) {
       // Content unchanged — return the last version.
-      const last = await listVersions(id);
+      const { listVersions: listV } = await import("@/lib/collab/versioning-read");
+      const last = await listV(id);
       return Response.json(
         { message: "No changes since last version", version: last[0] ?? null },
         { status: 200 },
       );
     }
 
-    const versions = await listVersions(id);
+    const { listVersions: listV } = await import("@/lib/collab/versioning-read");
+    const versions = await listV(id);
     return Response.json({ message: `Created version ${version}`, version: versions[0] });
   } catch (err: unknown) {
     return errorToResponse(err);

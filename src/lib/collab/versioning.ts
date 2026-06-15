@@ -16,7 +16,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import * as Y from "yjs";
+import type * as Y from "yjs";
 import { z } from "zod";
 
 import { DOCS_ROOT } from "../config";
@@ -349,7 +349,8 @@ export async function createVersion(
   // Compute Yjs state vector (for tombstone GC).
   let stateVector: string;
   if (opts.doc) {
-    const sv = Y.encodeStateVector(opts.doc);
+    const Ymod = await import("yjs");
+    const sv = Ymod.encodeStateVector(opts.doc);
     stateVector = Buffer.from(sv).toString("base64");
   } else {
     stateVector = "";

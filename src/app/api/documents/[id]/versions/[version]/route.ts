@@ -37,7 +37,8 @@ export async function GET(
   try {
     const { id, version } = await params;
     const versionNum = VersionParamSchema.parse(version);
-    const record = await readVersion(id, versionNum);
+    const { readVersion: readV } = await import("@/lib/collab/versioning-read");
+    const record = await readV(id, versionNum);
     return Response.json(record);
   } catch (err: unknown) {
     return errorToResponse(err);
@@ -57,10 +58,11 @@ export async function POST(
     const versionNum = VersionParamSchema.parse(version);
 
     // Read the version's Markdown.
-    const record = await readVersion(id, versionNum);
+    const { readVersion: readV } = await import("@/lib/collab/versioning-read");
+    const record = await readV(id, versionNum);
     const restoredMd = record.md;
 
-    // Write the restored content to disk (triggers watcher → reconcile into live Y.Doc).
+    // Write the restored content to disk.
     const currentDoc = await readDocument(id);
     const { writeDocument } = await import("@/lib/documents");
     const result = await writeDocument(id, restoredMd, { ifMatch: currentDoc.etag });
