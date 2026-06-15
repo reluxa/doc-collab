@@ -59,8 +59,12 @@ export async function POST(request: Request): Promise<Response> {
     const result = await createDocument(parsed.id, parsed.content);
     return Response.json(result, {
       status: 201,
+      headers: { ETag: result.etag },
     });
   } catch (err: unknown) {
+    if (err instanceof z.ZodError) {
+      return Response.json({ error: err.issues[0]?.message ?? "Invalid request" }, { status: 400 });
+    }
     return errorToResponse(err);
   }
 }

@@ -2,8 +2,6 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { readVersion } from "@/lib/collab/versioning-read";
-import { readDocument } from "@/lib/documents";
-import { reconcileDocumentFromDisk } from "@/lib/collab/reconcile-external";
 import {
   BadRequestError,
   NotFoundError,
@@ -39,56 +37,6 @@ export async function GET(
     const versionNum = VersionParamSchema.parse(version);
     const record = await readVersion(id, versionNum);
     return Response.json(record);
-  } catch (err: unknown) {
-    return errorToResponse(err);
-  }
-}
-
-/**
- * POST /api/documents/[id]/versions/[version]/restore
- * Restore a version to current (creates new version after restore).
- */
-export async function POST(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string; version: string }> },
-): Promise<Response> {
-  try {
-    const { id, version } = await params;
-    const versionNum = VersionParamSchema.parse(version);
-
-    // Read the version's Markdown.
-    const record = await readVersion(id, versionNum);
-    const restoredMd = record.md;
-
-    // Write the restored content to disk.
-    const currentDoc = await readDocument(id);
-    const { writeDocument } = await import("@/lib/documents");
-    const result = await writeDocument(id, restoredMd, { ifMatch: currentDoc.etag });
-
-    // Reconcile into live Y.Doc so browsers see it live.
-    try {
-      await reconcileDocumentFromDisk(id, restoredMd);
-    } catch {
-      // Best-effort — disk write already succeeded.
-    }
-
-    // Create a new version capturing the restored state.
-    try {
-      const { createVersion } = await import("@/lib/collab/versioning");
-      await createVersion(id, {
-        trigger: "manual",
-        author: "human",
-        markdown: restoredMd,
-        etag: result.etag,
-      });
-    } catch {
-      // Best-effort.
-    }
-
-    return Response.json({
-      message: `Restored version ${versionNum}`,
-      newEtag: result.etag,
-    });
   } catch (err: unknown) {
     return errorToResponse(err);
   }

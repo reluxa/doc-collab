@@ -137,7 +137,13 @@ async function main(): Promise<void> {
   const next = await import("next");
 
   const dev = process.argv.includes("--dev") || process.env.NODE_ENV !== "production";
-  const app = next.default({ dev });
+  const useWebpack =
+    dev &&
+    (process.env.DEV_WEBPACK === "1" || process.env.DEV_WEBPACK === "true");
+  const app = next.default({
+    dev,
+    ...(useWebpack ? { webpack: true } : {}),
+  });
   const handle = app.getRequestHandler();
 
   await app.prepare();
@@ -157,8 +163,9 @@ async function main(): Promise<void> {
   await setupFileWatcher();
 
   server.listen(PORT, HOST, () => {
+    const bundler = dev ? (useWebpack ? "webpack" : "turbopack") : "production";
     console.log(
-      `✓ Server ready at http://${HOST}:${PORT} (ws://${HOST}:${PORT}/ws, collab ws://${HOST}:${PORT}/ws/collab)`,
+      `✓ Server ready at http://${HOST}:${PORT} (ws://${HOST}:${PORT}/ws, collab ws://${HOST}:${PORT}/ws/collab, bundler: ${bundler})`,
     );
   });
 }
