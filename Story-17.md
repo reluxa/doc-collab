@@ -55,6 +55,11 @@ Users will be able to:
   - Template: ` ```mermaid\ngraph TD\n  A[Start] --> B{Decision}\n  B -->|Yes| C[Action]\n  B -->|No| D[End]\n``` `
 - [ ] **Dashboard & document list:**
   - Document cards on the home page show a subtle "diagram" indicator when the document contains mermaid blocks (optional badge or icon)
+- [ ] **MCP integration:**
+  - Update tool descriptions in `mcp-server/tools/` to mention mermaid diagram support in markdown content
+  - Ensure `write_document` and `replace_section_content` tool descriptions document the ` ```mermaid ` syntax
+  - Optionally add `insert_mermaid_diagram` tool for agent-focused diagram insertion (simpler prompt than raw markdown)
+  - Add mermaid examples to agent system prompt / tool hints so LLMs know diagrams are available
 - [ ] **Constitution compliance:**
   - API route handlers delegate to `src/lib/mermaid.ts`; no direct rendering in route files (§4)
   - All new external inputs validated with zod at the boundary (§2)
@@ -65,6 +70,7 @@ Users will be able to:
   - Unit tests for `validateMermaid` (valid syntax, syntax errors, empty input)
   - Unit tests for PDF mermaid rendering (diagram appears in PDF, fallback on error)
   - E2E tests: insert mermaid block, render diagram, toggle view, export PDF with diagram
+  - MCP tests: agent can create/update mermaid diagrams via tools
 
 ## Out of scope
 
@@ -73,7 +79,6 @@ Users will be able to:
 - Diagram-to-diagram linking or cross-references.
 - Client-side mermaid rendering in PDF (server-side only).
 - Mermaid live editor / drag-and-drop diagram builder (text-based only).
-- Mermaid support in MCP tool descriptions or agent output.
 
 ## Technical notes
 
