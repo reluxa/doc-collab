@@ -47,7 +47,7 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
 
 ## Conventions used in every story
 
-- **Definition of Done** for all stories is defined once in [`constitution.md`](./constitution.md) §11 (testing, code quality, naming, security, a11y, CI gates). Every story inherits it; the per-story acceptance criteria are *additional* to it, not a replacement.
+- **Definition of Done** for all stories is defined once in [`constitution.md`](./constitution.md) §12 (testing, code quality, naming, security, a11y, CI gates). Every story inherits it; the per-story acceptance criteria are *additional* to it, not a replacement.
 - Acceptance criteria are written as checkable statements; where useful they use **Given / When / Then**.
 - File paths reference the directory structure in `Architecture-final.md` §8.
 - UI work follows [`ui-design.md`](./ui-design.md); engineering standards (testing/quality/naming) follow [`constitution.md`](./constitution.md).
