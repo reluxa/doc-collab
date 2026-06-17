@@ -11,6 +11,7 @@ import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { MermaidDecoration } from "./mermaid-node";
 import TiptapLink from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
 import { Table } from "@tiptap/extension-table";
@@ -158,6 +159,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           lowlight,
           defaultLanguage: null,
         }),
+        MermaidDecoration,
         TiptapLink.configure({
           openOnClick: false,
           HTMLAttributes: {
