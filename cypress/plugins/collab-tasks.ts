@@ -248,13 +248,10 @@ export function registerCollabTasks(on: Cypress.PluginEvents, config: Cypress.Pl
       return updateDocumentContent(documentId, markdown, expectedVersion);
     },
 
-    /** Same code path as MCP `update_document` / `peerUpdateDocument` (Story 13).
-     * No-ops when collab server is unavailable (CI production build). */
+    /** Same code path as MCP `update_document` / `peerUpdateDocument` (Story 13). */
     mcpUpdateDocument({ documentId, markdown }: McpUpdateDocumentOptions) {
       process.env.MCP_COLLAB = "1";
-      return peerUpdateDocument(documentId, markdown)
-        .then(() => null)
-        .catch(() => null); // Graceful no-op when collab server unavailable
+      return peerUpdateDocument(documentId, markdown).then(() => null);
     },
 
     /** Same code path as MCP `create_document` (disk + CRDT peer). */
