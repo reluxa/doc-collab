@@ -158,7 +158,6 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           lowlight,
           defaultLanguage: null,
         }),
-        MermaidCodeBlock,
         TiptapLink.configure({
           openOnClick: false,
           HTMLAttributes: {
