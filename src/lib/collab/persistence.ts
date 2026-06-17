@@ -23,7 +23,10 @@ import { COLLAB_FIELD } from "./constants";
 import { markPersistenceWrite } from "./persist-echo";
 import { createVersion } from "./versioning";
 import { takeDirtySections } from "./section-dirty";
-import { replaceSectionsInMarkdown } from "./sections";
+import {
+  normalizeMarkdownForCompare,
+  replaceSectionsInMarkdown,
+} from "./sections";
 
 /** StarterKit schema used for headless Markdown serialization. */
 const COLLAB_SCHEMA = getSchema([
@@ -148,48 +151,59 @@ export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
     doc.gc = true;
   }
 
+  let diskMd: string | null = null;
+  try {
+    diskMd = await fs.readFile(mdPath, "utf-8");
+  } catch {
+    // New document — no on-disk baseline yet.
+  }
+
   const dirtyIds = takeDirtySections(doc);
   const canIncremental =
-    dirtyIds.length > 0 && !doc.share.has(COLLAB_FIELD);
+    diskMd !== null &&
+    dirtyIds.length > 0 &&
+    !doc.share.has(COLLAB_FIELD);
 
-  let md: string;
-  if (canIncremental) {
-    try {
-      const baseline = await fs.readFile(mdPath, "utf-8");
+  const serialized = serializeDocToMarkdown(doc);
+  const contentUnchanged =
+    diskMd !== null &&
+    normalizeMarkdownForCompare(diskMd) ===
+      normalizeMarkdownForCompare(serialized);
+
+  if (!contentUnchanged) {
+    let md: string;
+    if (canIncremental) {
       const replacements = getSectionsFromDoc(doc).filter((s) =>
         dirtyIds.includes(s.id),
       );
-      md = replaceSectionsInMarkdown(baseline, replacements);
+      md = replaceSectionsInMarkdown(diskMd!, replacements);
       if (process.env.PERSIST_LOG === "1") {
         console.log(
           `[persist] incremental ${id}: ${dirtyIds.length} section(s) [${dirtyIds.join(", ")}]`,
         );
       }
-    } catch {
-      md = serializeDocToMarkdown(doc);
+    } else {
+      md = serialized;
     }
-  } else {
-    md = serializeDocToMarkdown(doc);
+
+    await fs.writeFile(mdPath, md, "utf-8");
+    markPersistenceWrite(id, md);
+
+    // Create a version snapshot after persist (user-save trigger).
+    try {
+      await createVersion(id, {
+        trigger: "user-save",
+        author: "human",
+        doc,
+        markdown: md,
+      });
+    } catch {
+      // Versioning is best-effort — never fail a persist because of it.
+    }
   }
-
-  await fs.writeFile(mdPath, md, "utf-8");
-
-  markPersistenceWrite(id, md);
 
   const update = Y.encodeStateAsUpdate(doc);
   await fs.writeFile(ydocFilePath, Buffer.from(update));
-
-  // Create a version snapshot after persist (user-save trigger).
-  try {
-    await createVersion(id, {
-      trigger: "user-save",
-      author: "human",
-      doc,
-      markdown: md,
-    });
-  } catch {
-    // Versioning is best-effort — never fail a persist because of it.
-  }
 }
 
 /** Re-export for tests that use the section schema directly. */

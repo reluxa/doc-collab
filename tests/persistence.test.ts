@@ -18,8 +18,12 @@ import {
   storeYDocSnapshot,
   loadYDocSnapshot,
   ydocPath,
+  serializeDocToMarkdown,
 } from "@/lib/collab/persistence";
+import { applyCollabMarkdown } from "@/lib/collab/agent-document";
+import { createVersion, getVersionCount } from "@/lib/collab/versioning";
 import { DOCS_ROOT } from "@/lib/config";
+import { VERSIONS_DIR_NAME } from "@/lib/collab/versioning";
 
 // Use unique test document IDs to avoid conflicts.
 let testId = 0;
@@ -29,8 +33,10 @@ const nextTestId = () => `persistence-test-${++testId}`;
 async function cleanup(id: string): Promise<void> {
   const mdPath = path.join(DOCS_ROOT, `${id}.md`);
   const ydocFilePath = ydocPath(id);
+  const versionsDir = path.join(DOCS_ROOT, id, VERSIONS_DIR_NAME);
   try { await fs.unlink(mdPath); } catch { /* ignore */ }
   try { await fs.unlink(ydocFilePath); } catch { /* ignore */ }
+  try { await fs.rm(versionsDir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
 describe("persistence", () => {
@@ -146,5 +152,27 @@ Second body`;
 
     restored1.destroy();
     restored2.destroy();
+  });
+
+  it("does not create a version when Tiptap markdown matches disk semantically", async () => {
+    const id = nextTestId();
+    const diskMd = `# Version Open Test\n\n<!-- sec:body -->\n\nBaseline body.`;
+
+    await fs.writeFile(path.join(DOCS_ROOT, `${id}.md`), diskMd, "utf-8");
+    await createVersion(id, {
+      trigger: "manual",
+      author: "human",
+      markdown: diskMd,
+    });
+    expect(await getVersionCount(id)).toBe(1);
+
+    const doc = new Y.Doc();
+    applyCollabMarkdown(doc, "# Version Open Test\n\nBaseline body.");
+    expect(serializeDocToMarkdown(doc)).not.toBe(diskMd);
+
+    await storeYDocSnapshot(id, doc);
+    expect(await getVersionCount(id)).toBe(1);
+
+    doc.destroy();
   });
 });

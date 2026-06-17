@@ -21,6 +21,7 @@ import { z } from "zod";
 import { DOCS_ROOT } from "../config";
 import { resolveDocPath } from "../security";
 import { NotFoundError, BadRequestError } from "../errors";
+import { normalizeMarkdownForCompare } from "./sections";
 
 // ---------------------------------------------------------------------------
 // Constants (§2 — no magic values)
@@ -218,16 +219,16 @@ function computeContentEtag(content: string): string {
 }
 
 /**
- * Get the last version's etag for dedup comparison.
+ * Get the last version's markdown for dedup comparison.
  */
-async function lastVersionEtag(versionsDir: string): Promise<string | null> {
+async function lastVersionMarkdown(versionsDir: string): Promise<string | null> {
   const max = await highestVersionNumber(versionsDir);
   if (max === 0) return null;
   const filePath = versionFilePath(versionsDir, max);
   try {
     const raw = await fs.readFile(filePath, "utf-8");
     const record = validateVersionRecord(JSON.parse(raw));
-    return record.etag;
+    return record.md;
   } catch {
     return null;
   }
@@ -323,7 +324,7 @@ export function resetVersionTimers(): void {
  * Writes a JSON file to `documents/<id>/__versions__/NNNNNN.json`
  * containing the full Markdown snapshot, metadata, and Yjs state vector.
  *
- * Dedup guard: if the content etag matches the last version's etag,
+ * Dedup guard: if normalized markdown matches the last version,
  * no new version is created and `null` is returned.
  *
  * @param documentId  Document id (validated through resolveDocPath).
@@ -339,9 +340,12 @@ export async function createVersion(
   const md = opts.markdown ?? "";
   const etag = opts.etag ?? computeContentEtag(md);
 
-  // Dedup: skip if content hasn't changed since last version.
-  const lastEtag = await lastVersionEtag(versionsDir);
-  if (lastEtag === etag) {
+  // Dedup: skip if semantic content hasn't changed since last version.
+  const lastMd = await lastVersionMarkdown(versionsDir);
+  if (
+    lastMd !== null &&
+    normalizeMarkdownForCompare(lastMd) === normalizeMarkdownForCompare(md)
+  ) {
     return null;
   }
 

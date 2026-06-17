@@ -151,6 +151,28 @@ describe("createVersion", () => {
     await cleanupDoc(id);
   });
 
+  test("dedups when only section anchors differ", async () => {
+    const id = testId("anchor-dedup");
+    const md1 = `# Hi\n\n<!-- sec:a -->\n\nBody`;
+    const md2 = `# Hi\n\nBody`;
+
+    const v1 = await createVersion(id, {
+      trigger: "user-save",
+      author: "human",
+      markdown: md1,
+    });
+    expect(v1).toBe(1);
+
+    const v2 = await createVersion(id, {
+      trigger: "user-save",
+      author: "human",
+      markdown: md2,
+    });
+    expect(v2).toBeNull();
+
+    await cleanupDoc(id);
+  });
+
   test("creates version directory lazily", async () => {
     const id = testId("lazy");
     const md = "# Lazy\n\nDir.";

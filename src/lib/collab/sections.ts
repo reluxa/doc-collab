@@ -54,6 +54,18 @@ export function generateSectionId(): string {
 /** Regex matching the anchor comment `<!-- sec:<id> -->`. */
 const ANCHOR_RE = /^<!--\s*sec:([a-zA-Z0-9]+)\s*-->\s*\n?/;
 
+/** Regex matching any section anchor line (used for semantic compare). */
+const ANCHOR_LINE_RE = /^<!--\s*sec:[a-zA-Z0-9_-]+\s*-->\s*\n?/gm;
+
+/**
+ * Normalize markdown for semantic equality checks.
+ * Ignores section anchor comments and collapses whitespace so Tiptap
+ * serialization and section-based disk content compare equal.
+ */
+export function normalizeMarkdownForCompare(md: string): string {
+  return md.replace(ANCHOR_LINE_RE, "").replace(/\s+/g, " ").trim();
+}
+
 /** Regex matching a heading line `# heading` through `###### heading`. */
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
 
