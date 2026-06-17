@@ -283,6 +283,30 @@ function renderNode(
 // ---------------------------------------------------------------------------
 
 /**
+ * Register emoji image source for react-pdf.
+ *
+ * react-pdf converts emoji code points to inline images during layout.
+ * Without this, emojis (🔬, 🌱, etc.) are silently dropped from the PDF.
+ * Uses Twemoji SVG assets from jsdelivr CDN.
+ */
+let emojiSourceRegistered = false;
+
+function registerEmojiSource(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Font: any,
+): void {
+  if (emojiSourceRegistered) return;
+  if (Font && typeof Font.registerEmojiSource === "function") {
+    Font.registerEmojiSource({
+      // Twemoji PNGs are supported by pdfkit (SVG is not).
+      builder: (code: string) =>
+        `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${code}.png`,
+    });
+  }
+  emojiSourceRegistered = true;
+}
+
+/**
  * Render an mdast tree to a PDF buffer.
  *
  * Uses `@react-pdf/renderer`'s `renderToBuffer()`. The document model is
@@ -295,6 +319,11 @@ function renderNode(
 export async function renderMarkdownToPdf(tree: Root): Promise<Uint8Array> {
   const rpm = await loadReactPdf();
   const styles = await getStyles(rpm);
+
+  // Register emoji source so emoji code points render as Twemoji SVG images
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Font: any = rpm.Font;
+  registerEmojiSource(Font);
 
   const cmp = {
     View: rpm.View,

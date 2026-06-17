@@ -116,4 +116,39 @@ After`;
     const header = new TextDecoder().decode(pdf.slice(0, 5));
     expect(header).toBe("%PDF-");
   });
+
+  it("renders emojis correctly in PDF", async () => {
+    const md = `# Science Lab 🔬
+
+This document contains emojis: \u{1F52C} \u{1F31F} \u{2764} \u{1F680}
+
+- Item with emoji \u{1F4A1}
+- Another \u{2705} check`;
+
+    const tree = parseMarkdown(md);
+    const pdf = await renderMarkdownToPdf(tree);
+
+    const header = new TextDecoder().decode(pdf.slice(0, 5));
+    expect(header).toBe("%PDF-");
+
+    // react-pdf renders emojis as inline SVG images (via Twemoji CDN).
+    // Verify that the PDF is valid AND that emoji content produces a
+    // noticeably larger file than equivalent text without emojis
+    // (the embedded SVG image data adds bytes).
+
+    // Render the same text without emojis for comparison
+    const mdNoEmoji = `# Science Lab
+
+This document contains emojis: 4
+
+- Item with emoji 1
+- Another 1 check`;
+    const treeNoEmoji = parseMarkdown(mdNoEmoji);
+    const pdfNoEmoji = await renderMarkdownToPdf(treeNoEmoji);
+
+    // The emoji PDF should be significantly larger (Twemoji SVGs add image
+    // data per unique emoji). We have 6 unique emojis here, each SVG is
+    // roughly 500-800 bytes → expect at least 1000 bytes difference.
+    expect(pdf.byteLength).toBeGreaterThan(pdfNoEmoji.byteLength + 1000);
+  });
 });
