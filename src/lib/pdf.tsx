@@ -230,8 +230,18 @@ function renderNode(
     case "inlineCode":
       return <PdfText style={s.inlineCode}>{node.value as string}</PdfText>;
 
-    case "code":
-      return <PdfText style={s.code}>{node.value as string}</PdfText>;
+    case "code": {
+      // Check if this is a mermaid diagram code block.
+      // If so, render raw source as code block (server-side mermaid rendering
+      // in PDF is deferred pending headless browser decision).
+      const lang = (node.lang as string) ?? "";
+      const value = node.value as string;
+      // Show "mermaid" language label in the code block for context.
+      const displayValue = lang === "mermaid"
+        ? `--- mermaid diagram (rendered in editor) ---\n${value}`
+        : value;
+      return <PdfText style={s.code}>{displayValue}</PdfText>;
+    }
 
     case "blockquote":
       return <View style={s.blockquote}>{children}</View>;

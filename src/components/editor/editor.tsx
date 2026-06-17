@@ -24,6 +24,7 @@ import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import { Toolbar } from "./toolbar";
 import { ConflictBanner } from "./conflict-banner";
 import { VersionHistory } from "./version-history";
+import { MermaidCodeBlock } from "./mermaid-node";
 import { WsClient, type ConnectionStatus } from "./ws-client";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -158,6 +159,7 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
           lowlight,
           defaultLanguage: null,
         }),
+        MermaidCodeBlock,
         TiptapLink.configure({
           openOnClick: false,
           HTMLAttributes: {

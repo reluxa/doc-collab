@@ -238,12 +238,13 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "create_document",
     {
-      description: "Create a new document with the given name and content.",
+      description:
+        "Create a new document with the given name and content. Content supports Markdown including fenced code blocks. For diagrams, use ```mermaid blocks (e.g., graph TD; A-->B) which render as interactive diagrams in the editor.",
       inputSchema: {
         name: z
           .string()
           .describe("Document id (filename without .md extension)"),
-        content: z.string().describe("Markdown content for the new document"),
+        content: z.string().describe("Markdown content for the new document. Supports headings, lists, tables, code blocks, and ```mermaid diagram blocks."),
       },
     },
     async ({ name, content }) => {
@@ -278,12 +279,12 @@ export function registerTools(server: McpServer): void {
     "update_document",
     {
       description:
-        "Update an existing document. Supply expected_version for optimistic concurrency; omit for last-write-wins (logged).",
+        "Update an existing document. Supply expected_version for optimistic concurrency; omit for last-write-wins (logged). Content supports ```mermaid diagram blocks that render as interactive diagrams.",
       inputSchema: {
         name: z
           .string()
           .describe("Document id (filename without .md extension)"),
-        content: z.string().describe("New Markdown content"),
+        content: z.string().describe("New Markdown content. Supports headings, lists, tables, code blocks, and ```mermaid diagram blocks."),
         expected_version: z
           .string()
           .optional()
