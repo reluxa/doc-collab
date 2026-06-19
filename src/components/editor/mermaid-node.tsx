@@ -164,30 +164,73 @@ interface CachedWidget {
   element: HTMLElement;
   root: ReturnType<typeof createRoot>;
   source: string;
+  pos: number; // track position for cleanup
 }
 
-const widgetCache = new Map<number, CachedWidget>();
+const widgetCache = new Map<string, CachedWidget>();
 
-function getOrCreateWidget(pos: number, source: string): HTMLElement {
-  const cached = widgetCache.get(pos);
-  if (cached) {
-    if (cached.source !== source) {
-      cached.source = source;
-      cached.root.render(createElement(MermaidWidgetRoot, { source }));
+function getOrCreateWidget(pos: number, source: string, existingEl?: HTMLElement): HTMLElement {
+  // If we have an existing element from a previous decoration, try to reuse it
+  if (existingEl) {
+    const key = existingEl.getAttribute('data-widget-key');
+    if (key) {
+      const cached = widgetCache.get(key);
+      if (cached) {
+        if (cached.source !== source) {
+          cached.source = source;
+          cached.pos = pos;
+          cached.root.render(createElement(MermaidWidgetRoot, { source }));
+        } else {
+          cached.pos = pos;
+        }
+        existingEl.dataset.pos = String(pos);
+        return existingEl;
+      }
     }
-    return cached.element;
   }
 
   const element = document.createElement("div");
   element.className = "mermaid-widget";
   element.contentEditable = "false";
   element.dataset.pos = String(pos);
+  const key = `mermaid-widget-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  element.dataset.widgetKey = key;
 
   const root = createRoot(element);
   root.render(createElement(MermaidWidgetRoot, { source }));
 
-  widgetCache.set(pos, { element, root, source });
+  widgetCache.set(key, { element, root, source, pos });
   return element;
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup: remove cache entries when widgets are removed from DOM
+// ---------------------------------------------------------------------------
+
+function initCacheCleanup(view: EditorView) {
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const removed of mutation.removedNodes) {
+        const widget = removed as Node;
+        if (
+          widget.nodeType === Node.ELEMENT_NODE &&
+          (widget as HTMLElement).classList.contains("mermaid-widget")
+        ) {
+          const key = (widget as HTMLElement).dataset.widgetKey;
+          if (key) {
+            const cached = widgetCache.get(key);
+            if (cached) {
+              cached.root.unmount();
+              widgetCache.delete(key);
+            }
+          }
+        }
+      }
+    }
+  });
+  observer.observe(view.dom, { childList: true, subtree: true });
+  // Return a PluginView to satisfy the type requirement
+  return { destroy: () => observer.disconnect() };
 }
 
 // ---------------------------------------------------------------------------
@@ -203,18 +246,18 @@ export const MermaidDecoration = Extension.create({
       new Plugin({
         key: new PluginKey("mermaidDecoration"),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        view: initCacheCleanup,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         props: {
           decorations(state: any): DecorationSet {
             const { doc } = state;
             const decorations: any[] = [];
-            const usedPositions = new Set<number>();
 
             doc.descendants((node: ProseMirrorNode, pos: number) => {
               if (
                 node.type.name === "codeBlock" &&
                 (node.attrs as Record<string, unknown>)?.language === "mermaid"
               ) {
-                usedPositions.add(pos);
                 const child = (node as any).content?.firstChild as any;
                 const source = child?.text?.trim() ?? "";
                 const widgetElement = getOrCreateWidget(pos, source);
@@ -223,20 +266,11 @@ export const MermaidDecoration = Extension.create({
                 decorations.push(
                   Decoration.node(pos, pos + node.nodeSize, { class: "hidden-mermaid-source" }),
                 );
-                // Use a stable key so ProseMirror reuses the widget DOM element
                 decorations.push(
-                  Decoration.widget(pos, widgetElement, { side: 1, key: `mermaid-${pos}` }),
+                  Decoration.widget(pos, widgetElement, { side: 1 }),
                 );
               }
             });
-
-            // Clean up cache entries for widgets that no longer exist
-            for (const [cachedPos, cached] of widgetCache) {
-              if (!usedPositions.has(cachedPos)) {
-                cached.root.unmount();
-                widgetCache.delete(cachedPos);
-              }
-            }
 
             return DecorationSet.create(doc, decorations);
           },
