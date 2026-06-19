@@ -11,7 +11,8 @@ import Underline from "@tiptap/extension-underline";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
-import { MermaidDecoration } from "./mermaid-node";
+import { MermaidDecoration, setMermaidEditHandler } from "./mermaid-node";
+import { MermaidEditorDialog } from "./mermaid-editor-dialog";
 import TiptapLink from "@tiptap/extension-link";
 import Highlight from "@tiptap/extension-highlight";
 import { Table } from "@tiptap/extension-table";
@@ -103,6 +104,10 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
   const [exporting, setExporting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("offline");
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showMermaidDialog, setShowMermaidDialog] = useState(false);
+  const [mermaidSource, setMermaidSource] = useState("");
+  const [mermaidIsNew, setMermaidIsNew] = useState(false);
+  const [mermaidEditPos, setMermaidEditPos] = useState<number | null>(null);
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
 
@@ -290,6 +295,27 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Wire up the mermaid edit handler used by decoration widgets.
+  useEffect(() => {
+    setMermaidEditHandler((source: string, pos: number) => {
+      setMermaidSource(source);
+      setMermaidEditPos(pos);
+      setMermaidIsNew(false); // editing existing
+      setShowMermaidDialog(true);
+    });
+  }, []);
+
+  // Also listen for toolbar-initiated new diagram creation.
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      setMermaidSource(e.detail.source);
+      setMermaidIsNew(true); // inserting new
+      setShowMermaidDialog(true);
+    };
+    window.addEventListener("mermaid:new", handler as EventListener);
+    return () => window.removeEventListener("mermaid:new", handler as EventListener);
   }, []);
 
   const performSave = useCallback(async () => {
@@ -589,6 +615,44 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
     editor?.commands.deleteTable();
   }, [editor]);
 
+  // Mermaid dialog: save the diagram (insert new or update existing).
+  const handleMermaidSave = useCallback(
+    (newSource: string) => {
+      setShowMermaidDialog(false);
+      if (!editor) return;
+
+      if (mermaidIsNew || mermaidEditPos === null) {
+        // Insert new diagram at cursor position.
+        const fullContent = "```mermaid\n" + newSource + "```";
+        editor.chain().focus().insertContent(fullContent).run();
+        return;
+      }
+
+      // Replace existing diagram source using the tracked position.
+      const { view } = editor;
+      const { state } = view;
+      const { tr } = state;
+      const targetPos = mermaidEditPos;
+
+      state.doc.descendants((node: any, pos: number) => {
+        if (
+          pos === targetPos &&
+          node.type.name === "codeBlock" &&
+          node.attrs?.language === "mermaid"
+        ) {
+          const newText = state.schema.text(newSource);
+          tr.replaceWith(pos + 1, pos + node.nodeSize - 1, newText);
+          return false; // stop traversal
+        }
+        return true;
+      });
+
+      view.dispatch(tr);
+      setMermaidEditPos(null);
+    },
+    [editor, mermaidIsNew, mermaidEditPos],
+  );
+
   // Status indicators per ui-design.md §6.8.
   const saveIndicator = (
     <span
@@ -870,6 +934,14 @@ export function Editor({ id, initialContent, initialEtag }: EditorProps) {
             .catch(() => {});
           showToast("success", "Version restored");
         }}
+      />
+
+      {/* Mermaid editor dialog */}
+      <MermaidEditorDialog
+        open={showMermaidDialog}
+        initialSource={mermaidSource}
+        onClose={() => setShowMermaidDialog(false)}
+        onSave={handleMermaidSave}
       />
     </div>
   );

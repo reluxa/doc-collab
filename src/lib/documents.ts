@@ -9,7 +9,6 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "./errors";
-import { invalidateDocumentListCache } from "./document-list-cache";
 import { markApiWrite } from "./api-write-echo";
 import { resolveDocPath } from "./security";
 import type { DocumentContent, DocumentId, DocumentMeta } from "../types/document";
@@ -21,6 +20,48 @@ export {
   ForbiddenError,
   NotFoundError,
 };
+
+// ---------------------------------------------------------------------------
+// In-memory document list cache (moved here to break circular dependency
+// with document-list-cache.ts which imports back to documents.ts)
+// ---------------------------------------------------------------------------
+
+const globalForDocList = globalThis as unknown as {
+  __docCollabDocumentListCache?: DocumentMeta[] | null;
+};
+
+function getDocListCache(): { cached: DocumentMeta[] | null } {
+  if (!globalForDocList.__docCollabDocumentListCache) {
+    globalForDocList.__docCollabDocumentListCache = null;
+  }
+  return {
+    get cached() {
+      return globalForDocList.__docCollabDocumentListCache ?? null;
+    },
+    set cached(value: DocumentMeta[] | null) {
+      globalForDocList.__docCollabDocumentListCache = value;
+    },
+  };
+}
+
+/** Drop cached list — call after any document add/change/delete. */
+export function invalidateDocumentListCache(): void {
+  globalForDocList.__docCollabDocumentListCache = null;
+}
+
+/** List documents with caching. */
+export async function listDocumentsCached(): Promise<DocumentMeta[]> {
+  const store = getDocListCache();
+  if (store.cached) return store.cached;
+  const docs = await listDocuments();
+  store.cached = docs;
+  return docs;
+}
+
+/** Reset state (tests). */
+export function resetDocumentListCache(): void {
+  invalidateDocumentListCache();
+}
 
 // ---------------------------------------------------------------------------
 // ETag helpers

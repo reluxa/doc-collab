@@ -13,7 +13,7 @@ import type { Duplex } from "node:stream";
 import path from "node:path";
 
 import { DOCS_ROOT, HOST, PORT } from "./src/lib/config";
-import { invalidateDocumentListCache } from "./src/lib/document-list-cache";
+import { invalidateDocumentListCache } from "./src/lib/documents";
 import { setupHocuspocusCollab } from "./src/lib/collab/hocuspocus";
 import { setupWebSocketServer, broadcast, type DocChangedEvent } from "./src/lib/realtime";
 

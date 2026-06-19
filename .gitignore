@@ -45,6 +45,11 @@ Thumbs.db
 
 # Test temp directories
 .tmp-*/
+.tmp/
+
+CI:
+Dev:
+Server:
 
 # Pi session artifacts
 .pi/

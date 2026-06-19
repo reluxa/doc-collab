@@ -517,3 +517,8 @@ body.table-menu-visible [data-table-bubble-menu] {
   animation: remote-edit-flash-keyframes 600ms ease-out;
 }
 
+/* Hide mermaid code block source — only the widget SVG is visible */
+.hidden-mermaid-source {
+  display: none !important;
+}
+

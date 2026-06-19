@@ -31,11 +31,28 @@ describe("Mermaid diagram support", () => {
     });
   });
 
-  it("toolbar button inserts mermaid template", () => {
+  it("toolbar button opens editor dialog and inserts on save", () => {
     // Click the mermaid diagram toolbar button.
     cy.get('button[aria-label="Mermaid diagram"]').trigger("mousedown", {
       force: true,
     });
+
+    // The editor dialog should appear.
+    cy.get('[role="dialog"]', { timeout: 10000 }).should("be.visible");
+    cy.get('[role="dialog"]').should("contain", "Edit Diagram");
+
+    // The source textarea should have the template.
+    cy.get("textarea").should("be.visible");
+    cy.get("textarea").should("contain", "graph TD");
+
+    // Click Save to insert the diagram.
+    cy.get('[role="dialog"]')
+      .find("button")
+      .contains("Save")
+      .click();
+
+    // The dialog should close.
+    cy.get('[role="dialog"]').should("not.exist");
 
     // The mermaid widget should appear (decoration plugin renders it).
     cy.get(".mermaid-widget", { timeout: 10000 }).should("be.visible");
@@ -90,7 +107,7 @@ gantt
     });
   });
 
-  it("toggle button switches between diagram and source code", () => {
+  it("clicking diagram opens editor dialog and updates on save", () => {
     // Use the API to create a document with a mermaid block.
     cy.request({
       method: "DELETE",
@@ -102,7 +119,7 @@ gantt
       url: "/api/documents",
       body: {
         id: "cypress-mermaid-test",
-        content: `# Toggle Test
+        content: `# Edit Test
 
 \`\`\`mermaid
 graph TD; A-->B;
@@ -117,16 +134,29 @@ graph TD; A-->B;
     // The diagram widget should be visible.
     cy.get(".mermaid-widget", { timeout: 10000 }).should("be.visible");
 
-    // Click the toggle button to show source code.
-    cy.get('button[aria-label="Show source code"]').first().click();
+    // Click the diagram to open the editor dialog.
+    cy.get(".mermaid-widget").first().click();
 
-    // The source code should be visible.
-    cy.contains("graph TD; A-->B;", { timeout: 5000 }).should("be.visible");
+    // The editor dialog should appear.
+    cy.get('[role="dialog"]', { timeout: 5000 }).should("be.visible");
 
-    // Click the toggle button to show diagram again.
-    cy.get('button[aria-label="Show diagram preview"]').first().click();
+    // The source textarea should have the current source.
+    cy.get("textarea").should("contain", "graph TD");
 
-    // The diagram widget should be visible again.
+    // Edit the source.
+    cy.get("textarea").clear();
+    cy.get("textarea").type("graph LR; X-->Y-->Z");
+
+    // Click Save.
+    cy.get('[role="dialog"]')
+      .find("button")
+      .contains("Save")
+      .click();
+
+    // The dialog should close.
+    cy.get('[role="dialog"]').should("not.exist");
+
+    // The diagram should still be visible (re-rendered).
     cy.get(".mermaid-widget", { timeout: 5000 }).should("be.visible");
   });
 
