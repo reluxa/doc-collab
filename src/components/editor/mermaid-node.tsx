@@ -180,6 +180,11 @@ export const MermaidDecoration = Extension.create({
                 // Set position on the element so click handler can find it
                 element.dataset.pos = String(pos);
 
+                // Hide the code block source permanently
+                decorations.push(
+                  Decoration.node(pos, pos + node.nodeSize, { class: "hidden-mermaid-source" }),
+                );
+
                 // Stable key = sequential index, so ProseMirror reuses the DOM
                 // even when the codeBlock's document position shifts.
                 decorations.push(

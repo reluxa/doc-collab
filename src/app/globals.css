@@ -517,8 +517,8 @@ body.table-menu-visible [data-table-bubble-menu] {
   animation: remote-edit-flash-keyframes 600ms ease-out;
 }
 
-/* Hide mermaid code block source permanently — no class toggling by decorations */
-pre[data-language="mermaid"] {
+/* Hide mermaid code block source */
+.hidden-mermaid-source {
   display: none !important;
 }
 
