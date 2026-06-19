@@ -262,10 +262,6 @@ export const MermaidDecoration = Extension.create({
                 const source = child?.text?.trim() ?? "";
                 const widgetElement = getOrCreateWidget(pos, source);
 
-                // Hide the code block source; only the widget is visible
-                decorations.push(
-                  Decoration.node(pos, pos + node.nodeSize, { class: "hidden-mermaid-source" }),
-                );
                 decorations.push(
                   Decoration.widget(pos, widgetElement, { side: 1 }),
                 );
