@@ -26,6 +26,9 @@ jobs:
       - name: Prepare test directories
         run: mkdir -p documents
 
+      - name: Install PDF roundtrip tool
+        run: npm install -g @pspdfkit/pdf-to-markdown
+
       - name: TypeScript check
         run: npx tsc --noEmit
 

@@ -13,9 +13,14 @@
 import * as fs from "node:fs/promises";
 import * as Y from "yjs";
 import { getSchema } from "@tiptap/core";
+import { Table } from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
 import StarterKit from "@tiptap/starter-kit";
 import { TiptapTransformer } from "@hocuspocus/transformer";
 import { defaultMarkdownSerializer } from "prosemirror-markdown";
+import type { MarkdownSerializerState } from "prosemirror-markdown";
 
 import { resolveDocPath } from "../security";
 import { yDocToMarkdown, markdownToYDoc, getSectionsFromDoc } from "./md-bridge";
@@ -28,7 +33,7 @@ import {
   replaceSectionsInMarkdown,
 } from "./sections";
 
-/** StarterKit schema used for headless Markdown serialization. */
+/** Schema used for headless Markdown serialization. Includes table extensions. */
 const COLLAB_SCHEMA = getSchema([
   StarterKit.configure({
     undoRedo: false,
@@ -36,11 +41,16 @@ const COLLAB_SCHEMA = getSchema([
     link: false,
     underline: false,
   }),
+  Table,
+  TableRow,
+  TableHeader,
+  TableCell,
 ]);
 
 type TiptapJsonNode = {
   type?: string;
-  attrs?: { level?: number };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  attrs?: Record<string, any>;
   text?: string;
   content?: TiptapJsonNode[];
 };
@@ -55,6 +65,41 @@ function listItemText(node: TiptapJsonNode): string {
     .map((child) => (child.type === "paragraph" ? inlineText(child) : inlineText(child)))
     .filter(Boolean)
     .join("\n");
+}
+
+/** Render table as GFM markdown. */
+function renderTableAsMarkdown(tableNode: TiptapJsonNode): string {
+  const rows = tableNode.content ?? [];
+  if (rows.length === 0) return "";
+
+  const lines: string[] = [];
+  // Determine column count from first row.
+  const firstRow = rows[0];
+  const firstRowCells = firstRow.content ?? [];
+  const numCols = Math.max(firstRowCells.length, 1);
+
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri];
+    const cells = row.content ?? [];
+    const cellTexts: string[] = [];
+    for (let ci = 0; ci < numCols; ci++) {
+      const cell = cells[ci];
+      if (cell) {
+        cellTexts.push(inlineText(cell).replace(/\n/g, " "));
+      } else {
+        cellTexts.push("");
+      }
+    }
+    lines.push(`| ${cellTexts.join(" | ")} |`);
+
+    // After header row, add separator row.
+    if (ri === 0) {
+      const sep = numCols > 0 ? `|${Array(numCols).fill("---").join("|")}|` : "";
+      lines.push(sep);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 /** Fallback when prosemirror-markdown cannot serialize lists from Tiptap JSON. */
@@ -72,6 +117,8 @@ export function tiptapDocJsonToMarkdown(json: TiptapJsonNode): string {
         if (item.type === "listItem") lines.push(`- ${listItemText(item)}`);
       }
       lines.push("");
+    } else if (block.type === "table") {
+      lines.push(renderTableAsMarkdown(block), "");
     }
   }
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
@@ -109,6 +156,83 @@ export async function loadYDocSnapshot(id: string): Promise<Uint8Array | null> {
 // ---------------------------------------------------------------------------
 // Serialize
 // ---------------------------------------------------------------------------
+
+/**
+ * Serialize the live Tiptap `default` fragment to Markdown, if present.
+ * Uses prosemirror-markdown (no DOM) so this is safe on the Node server.
+ */
+// ---------------------------------------------------------------------------
+// Table serializers for prosemirror-markdown
+// ---------------------------------------------------------------------------
+
+/**
+ * Register table serializers on the defaultMarkdownSerializer.
+ */
+function registerTableSerializers(): void {
+  if ((defaultMarkdownSerializer.nodes as Record<string, unknown>)["table"]) return;
+
+  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table"] = (
+    state: MarkdownSerializerState,
+    node: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      content: any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      childCount: number;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      child: (i: number) => any;
+    },
+  ) => {
+    state.write("\n\n");
+    state.flushClose();
+    const rows: string[] = [];
+    let numCols = 0;
+
+    for (let i = 0; i < node.childCount; i++) {
+      const row = node.child(i);
+      const cells: string[] = [];
+      for (let j = 0; j < row.childCount; j++) {
+        const cell = row.child(j);
+        const text = state.serializeNodeInner(cell, j);
+        cells.push(text.trim().replace(/\n/g, " "));
+      }
+      if (i === 0) numCols = cells.length;
+      // Pad shorter rows.
+      while (cells.length < numCols) cells.push("");
+      rows.push(`| ${cells.join(" | ")} |`);
+
+      if (i === 0 && numCols > 0) {
+        rows.push(`|${Array(numCols).fill("---").join("|")}|`);
+      }
+    }
+
+    state.write(rows.join("\n"));
+    state.closeBlock(node);
+  };
+
+  // Table row/cell/header nodes are rendered inline via open/close.
+  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_row"] = (
+    _state: MarkdownSerializerState,
+    _node: unknown,
+  ) => {
+    // Handled by "table" node above.
+  };
+
+  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_cell"] = (
+    _state: MarkdownSerializerState,
+    _node: unknown,
+  ) => {
+    // Handled by "table" node above.
+  };
+
+  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_header"] = (
+    _state: MarkdownSerializerState,
+    _node: unknown,
+  ) => {
+    // Handled by "table" node above.
+  };
+}
+
+registerTableSerializers();
 
 /**
  * Serialize the live Tiptap `default` fragment to Markdown, if present.

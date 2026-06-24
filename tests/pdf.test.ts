@@ -1,3 +1,6 @@
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseMarkdown } from "../src/lib/markdown";
@@ -151,4 +154,80 @@ This document contains emojis: 4
     // roughly 500-800 bytes → expect at least 1000 bytes difference.
     expect(pdf.byteLength).toBeGreaterThan(pdfNoEmoji.byteLength + 1000);
   });
+
+  it("table roundtrip: markdown → PDF → markdown preserves tabular format via @pspdfkit/pdf-to-markdown", async () => {
+    // Create a markdown document with a table
+    const md = `| Name    | Age | City      |
+|---------|-----|-----------|
+| Alice   | 30  | New York  |
+| Bob     | 25  | London    |
+| Charlie | 35  | Tokyo     |`;
+
+    // Render to PDF
+    const tree = parseMarkdown(md);
+    const pdf = await renderMarkdownToPdf(tree);
+
+    const header = new TextDecoder().decode(pdf.slice(0, 5));
+    expect(header).toBe("%PDF-");
+
+    // Write PDF to a temp file
+    const tmpDir = fs.mkdtempSync(path.join(__dirname, "../.tmp-pdf-roundtrip-"));
+    const pdfPath = path.join(tmpDir, "table.pdf");
+    fs.writeFileSync(pdfPath, Buffer.from(pdf));
+
+    try {
+      // Use Docker + @pspdfkit/pdf-to-markdown (nutrient CLI) to convert PDF back to markdown
+      const nutrientBinary = path.resolve(
+        process.env.HOME ?? "/home/reluxa",
+        ".local/share/nutrient/cli/nutrient-linux-amd64",
+      );
+
+      const dockerCmd = [
+        "docker", "run", "--rm",
+        `-v ${pdfPath}:/input.pdf:ro`,
+        `-v ${nutrientBinary}:/nutrient:ro`,
+        "ubuntu:24.04",
+        "/bin/bash", "-c",
+        "'apt-get update -qq && apt-get install -y -qq libcurl4 libssl3 libicu74 2>/dev/null && /nutrient pdf-to-markdown /input.pdf'",
+      ].join(" ");
+
+      const output = execSync(dockerCmd, {
+        encoding: "utf-8",
+        timeout: 30_000,
+        stdio: "pipe",
+      });
+
+      // The tool converts PDF tables to HTML table elements.
+      // Verify the tabular structure is preserved.
+      expect(output).toContain("<table>");
+      expect(output).toContain("</table>");
+      expect(output).toContain("<tr>");
+      expect(output).toContain("</tr>");
+
+      // Header cells
+      expect(output).toContain("<th>Name</th>");
+      expect(output).toContain("<th>Age</th>");
+      expect(output).toContain("<th>City</th>");
+
+      // Data cells
+      expect(output).toContain("<td>Alice</td>");
+      expect(output).toContain("<td>30</td>");
+      expect(output).toContain("<td>New York</td>");
+      expect(output).toContain("<td>Bob</td>");
+      expect(output).toContain("<td>25</td>");
+      expect(output).toContain("<td>London</td>");
+      expect(output).toContain("<td>Charlie</td>");
+      expect(output).toContain("<td>35</td>");
+      expect(output).toContain("<td>Tokyo</td>");
+
+      // All 3 header cells + 3 rows × 3 cells = 12 table cells total
+      const thCount = output.match(/<th>/g)?.length ?? 0;
+      const tdCount = output.match(/<td>/g)?.length ?? 0;
+      expect(thCount).toBe(3);
+      expect(tdCount).toBe(9);
+    } finally {
+      // Cleanup temp directory
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
