@@ -26,8 +26,8 @@ jobs:
       - name: Prepare test directories
         run: mkdir -p documents
 
-      - name: Install PDF roundtrip tool
-        run: npm install -g @pspdfkit/pdf-to-markdown
+      - name: Pre-pull Docker image for PDF roundtrip test
+        run: docker pull ubuntu:24.04
 
       - name: TypeScript check
         run: npx tsc --noEmit
