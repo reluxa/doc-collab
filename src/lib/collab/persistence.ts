@@ -20,7 +20,6 @@ import TableHeader from "@tiptap/extension-table-header";
 import StarterKit from "@tiptap/starter-kit";
 import { TiptapTransformer } from "@hocuspocus/transformer";
 import { defaultMarkdownSerializer } from "prosemirror-markdown";
-import type { MarkdownSerializerState } from "prosemirror-markdown";
 
 import { resolveDocPath } from "../security";
 import { yDocToMarkdown, markdownToYDoc, getSectionsFromDoc } from "./md-bridge";
@@ -160,83 +159,11 @@ export async function loadYDocSnapshot(id: string): Promise<Uint8Array | null> {
 /**
  * Serialize the live Tiptap `default` fragment to Markdown, if present.
  * Uses prosemirror-markdown (no DOM) so this is safe on the Node server.
- */
-// ---------------------------------------------------------------------------
-// Table serializers for prosemirror-markdown
-// ---------------------------------------------------------------------------
-
-/**
- * Register table serializers on the defaultMarkdownSerializer.
- */
-function registerTableSerializers(): void {
-  if ((defaultMarkdownSerializer.nodes as Record<string, unknown>)["table"]) return;
-
-  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table"] = (
-    state: MarkdownSerializerState,
-    node: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      content: any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      childCount: number;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      child: (i: number) => any;
-    },
-  ) => {
-    state.write("\n\n");
-    state.flushClose();
-    const rows: string[] = [];
-    let numCols = 0;
-
-    for (let i = 0; i < node.childCount; i++) {
-      const row = node.child(i);
-      const cells: string[] = [];
-      for (let j = 0; j < row.childCount; j++) {
-        const cell = row.child(j);
-        const text = state.serializeNodeInner(cell, j);
-        cells.push(text.trim().replace(/\n/g, " "));
-      }
-      if (i === 0) numCols = cells.length;
-      // Pad shorter rows.
-      while (cells.length < numCols) cells.push("");
-      rows.push(`| ${cells.join(" | ")} |`);
-
-      if (i === 0 && numCols > 0) {
-        rows.push(`|${Array(numCols).fill("---").join("|")}|`);
-      }
-    }
-
-    state.write(rows.join("\n"));
-    state.closeBlock(node);
-  };
-
-  // Table row/cell/header nodes are rendered inline via open/close.
-  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_row"] = (
-    _state: MarkdownSerializerState,
-    _node: unknown,
-  ) => {
-    // Handled by "table" node above.
-  };
-
-  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_cell"] = (
-    _state: MarkdownSerializerState,
-    _node: unknown,
-  ) => {
-    // Handled by "table" node above.
-  };
-
-  (defaultMarkdownSerializer.nodes as Record<string, unknown>)["table_header"] = (
-    _state: MarkdownSerializerState,
-    _node: unknown,
-  ) => {
-    // Handled by "table" node above.
-  };
-}
-
-registerTableSerializers();
-
-/**
- * Serialize the live Tiptap `default` fragment to Markdown, if present.
- * Uses prosemirror-markdown (no DOM) so this is safe on the Node server.
+ *
+ * Table nodes are NOT registered in defaultMarkdownSerializer — when the
+ * serializer encounters a table node type it throws (strict: true by default).
+ * The catch block below falls back to tiptapDocJsonToMarkdown, which handles
+ * tables properly via renderTableAsMarkdown.
  */
 export function yDocDefaultToMarkdown(doc: Y.Doc): string | null {
   if (!doc.share.has(COLLAB_FIELD)) return null;
