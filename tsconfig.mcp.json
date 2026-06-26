@@ -8,6 +8,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "jsx": "react-jsx",
     "outDir": "./dist/mcp-server",
     "rootDir": ".",
     "declaration": false,
