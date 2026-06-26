@@ -1,6 +1,6 @@
 
 import Link from "next/link";
-import { Editor } from "@/components/editor/editor";
+import { DynamicEditor } from "@/components/editor/dynamic-editor";
 import { readDocument, NotFoundError } from "@/lib/documents";
 import type { DocumentContent } from "@/types/document";
 
@@ -24,7 +24,7 @@ export default async function EditorPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <Editor
+    <DynamicEditor
       id={doc.id}
       initialContent={doc.content}
       initialEtag={doc.etag}

@@ -1,8 +1,78 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DocumentMeta } from "@/types/document";
+
+function PreviewImage({
+  previewUrl,
+  title,
+  onError,
+}: {
+  previewUrl: string | null;
+  title: string;
+  onError: () => void;
+}) {
+  // When previewUrl is null or falsy, show the gradient placeholder.
+  if (!previewUrl) {
+    return <PlaceholderPreview />;
+  }
+
+  return (
+    <img
+      src={previewUrl}
+      alt={`Preview of ${title}`}
+      loading="lazy"
+      decoding="async"
+      onError={onError}
+      className="h-full w-full object-cover object-top transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:scale-[1.03]"
+    />
+  );
+}
+
+function PlaceholderPreview() {
+  return (
+    <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-brand-400 via-brand-500 to-brand-600">
+      {/* Soft top-left light bloom */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: "radial-gradient(120% 120% at 25% 15%, rgba(255,255,255,.28), transparent 55%)",
+        }}
+      />
+      {/* Subtle oversized glyph bleed at one corner for texture */}
+      <svg
+        className="pointer-events-none absolute -bottom-6 -right-6 h-32 w-32 text-white/5"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      {/* Centered document glyph */}
+      <svg
+        className="relative h-9 w-9 text-white/90 drop-shadow-[0_2px_6px_rgba(0,0,0,.18)]"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+    </div>
+  );
+}
 
 export function DocumentList({
   onCreate,
@@ -14,7 +84,12 @@ export function DocumentList({
   const [docs, setDocs] = useState<DocumentMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [erroredPreviews, setErroredPreviews] = useState<Set<string>>(new Set());
   const mounted = useRef(false);
+
+  const handleImageError = useCallback((id: string) => {
+    setErroredPreviews((prev) => new Set(prev).add(id));
+  }, []);
 
   async function fetchDocs() {
     try {
@@ -65,14 +140,11 @@ export function DocumentList({
             key={i}
             className="relative overflow-hidden rounded-lg border border-border bg-surface"
           >
-            <div className="h-[3px] w-full bg-gradient-to-r from-brand-500 to-brand-300" />
+            {/* Preview shimmer — 4:3 aspect ratio */}
+            <div className="aspect-[4/3] w-full animate-pulse bg-surface-2" />
             <div className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="h-12 w-12 shrink-0 animate-pulse rounded-lg bg-surface-2" />
-                <div className="flex-1 space-y-2 py-0.5">
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-surface-2" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-surface-2" />
-                </div>
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 animate-pulse rounded bg-surface-2" />
               </div>
               <div className="mt-4 h-px bg-border" />
               <div className="mt-3 flex items-center gap-1.5">
@@ -115,70 +187,97 @@ export function DocumentList({
   return (
     <>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {docs.map((doc, i) => (
-          <Link
-            key={doc.id}
-            href={`/editor/${doc.id}`}
-            style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
-            className="group animate-fade-up relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[var(--shadow-e1)] transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[0_12px_28px_-8px_rgba(99,102,241,.30)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
-          >
-            {/* Top accent bar */}
-            <div className="accent-bar h-[3px] w-full opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+        {docs.map((doc, i) => {
+          const hasPreview =
+            doc.previewUrl && !erroredPreviews.has(doc.id);
 
-            <div className="flex flex-1 flex-col p-5">
-              {/* Icon + Title */}
-              <div className="flex items-start gap-3">
-                <div className="accent-bar flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-white shadow-[0_6px_14px_-4px_rgba(99,102,241,.5)] transition-transform duration-200 group-hover:scale-105">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                </div>
-                <div className="min-w-0 flex-1 py-0.5">
-                  <h3 className="truncate text-base font-semibold leading-tight text-text group-hover:text-brand-600">
-                    {doc.title}
-                  </h3>
-                </div>
+          return (
+            <Link
+              key={doc.id}
+              href={`/editor/${doc.id}`}
+              style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+              className="group animate-fade-up relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[var(--shadow-e1)] transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[0_12px_28px_-8px_rgba(99,102,241,.30)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
+            >
+              {/* Preview area — full-bleed at top, 4:3 aspect ratio */}
+              <div className="relative aspect-[4/3] w-full overflow-hidden">
+                {/* Inset hairline in light mode */}
+                <div className="pointer-events-none absolute inset-0 z-10 rounded-t-lg ring-1 ring-inset ring-black/[.06] dark:ring-0" />
+
+                <PreviewImage
+                  previewUrl={hasPreview ? doc.previewUrl : null}
+                  title={doc.title}
+                  onError={() => handleImageError(doc.id)}
+                />
               </div>
 
-              {/* Divider */}
-              <div className="mt-4 h-px bg-border" />
+              {/* Brand seam at the base of the preview */}
+              <div className="h-[2px] w-full bg-gradient-to-r from-brand-500 to-brand-300 opacity-60 transition-opacity duration-200 group-hover:opacity-100" />
 
-              {/* Meta row */}
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-text-subtle">
-                  <div className="flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    {formatModified(doc.modifiedAt as unknown as string)}
+              {/* Card body — no icon tile, just title + meta */}
+              <div className="flex flex-1 flex-col p-5 pt-4">
+                <h3 className="truncate text-base font-semibold leading-tight text-text group-hover:text-brand-600">
+                  {doc.title}
+                </h3>
+
+                {/* Divider */}
+                <div className="mt-4 h-px bg-border" />
+
+                {/* Meta row */}
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-text-subtle">
+                    <div className="flex items-center gap-1.5">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {formatModified(doc.modifiedAt as unknown as string)}
+                    </div>
+                    {doc.versionCount && doc.versionCount > 0 && (
+                      <span className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
+                        v{doc.versionCount}
+                      </span>
+                    )}
                   </div>
-                  {doc.versionCount && doc.versionCount > 0 && (
-                    <span className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
-                      v{doc.versionCount}
-                    </span>
-                  )}
+                  {/* Delete button — visible on hover */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setConfirmDelete(doc.id);
+                    }}
+                    className="rounded-md p-1.5 text-text-subtle opacity-0 transition-all duration-200 hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
+                    aria-label={`Delete ${doc.title}`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
                 </div>
-                {/* Delete button - visible on hover */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setConfirmDelete(doc.id);
-                  }}
-                  className="rounded-md p-1.5 text-text-subtle opacity-0 transition-all duration-200 hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
-                  aria-label={`Delete ${doc.title}`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
-                </button>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
 
       {confirmDelete && (
@@ -226,4 +325,3 @@ function ConfirmDeleteDialog({ onClose, onConfirm }: { onClose: () => void; onCo
     </div>
   );
 }
-// touch Fri Jun 12 11:32:43 CEST 2026

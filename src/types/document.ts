@@ -12,6 +12,8 @@ export interface DocumentMeta {
   modifiedAt: Date;
   /** Number of saved versions for this document. */
   versionCount?: number;
+  /** URL path to the preview PNG image, or null if none exists yet. */
+  previewUrl: string | null;
 }
 
 /** Document content returned by the read endpoint. */

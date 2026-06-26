@@ -32,6 +32,7 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
 | 15 | [Version snapshot engine](./Story-15.md) | 2–3 d | 12, 13 |
 | 16 | [Version history UI & restore](./Story-16.md) | 2–3 d | 15 |
 | 17 | [Mermaid diagram support](./Story-17.md) | 2–3 d | 12 |
+| 18 | [Document preview images on the dashboard](./Story-18.md) | 2–3 d | 5, 6 |
 
 ## Dependency graph (high level)
 
@@ -43,6 +44,7 @@ UI work follows [`ui-design.md`](./ui-design.md) (color system, typography, comp
          └─ 6
 4 ─ 11 ─ 12 ─ 13 ─ 14
 7 ─────── 12          15 ─ 16
+2 ─── 5 ────────────── 18
 ```
 
 ## Conventions used in every story

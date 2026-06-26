@@ -141,12 +141,28 @@ export async function listDocuments(): Promise<DocumentMeta[]> {
       id,
       title,
       modifiedAt: stats.mtime,
+      previewUrl: null,
     });
   }
 
   // Sort by most recently modified first.
   docs.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
   return docs;
+}
+
+/**
+ * Check if a preview PNG exists for a given document id.
+ * Used by the API route to populate the previewUrl field.
+ */
+export async function previewFileExists(id: string): Promise<boolean> {
+  try {
+    const { resolvePreviewPath } = await import("./security");
+    const previewPath = resolvePreviewPath(id);
+    await fs.access(previewPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -196,6 +212,15 @@ export async function createDocument(
 
   invalidateDocumentListCache();
   const etag = await computeETag(filePath);
+
+  // Generate a preview thumbnail (best-effort).
+  try {
+    const { generatePreview } = await import("./preview");
+    await generatePreview(id, content);
+  } catch {
+    // Preview is best-effort — never fail a create.
+  }
+
   return { id, content, etag };
 }
 
@@ -251,6 +276,14 @@ export async function writeDocument(
       // Versioning is best-effort — never fail a write because of it.
     }
 
+    // Generate a preview thumbnail (best-effort).
+    try {
+      const { generatePreview } = await import("./preview");
+      await generatePreview(id, content);
+    } catch {
+      // Preview is best-effort — never fail a write.
+    }
+
     return { id, content, etag: newETag };
   });
 }
@@ -275,6 +308,14 @@ export async function deleteDocument(id: DocumentId): Promise<void> {
   try {
     const { deleteVersions } = await import("./collab/versioning");
     await deleteVersions(id);
+  } catch {
+    // Best-effort cleanup — the document itself is already gone.
+  }
+
+  // Delete the preview thumbnail (best-effort).
+  try {
+    const { deletePreview } = await import("./preview");
+    await deletePreview(id);
   } catch {
     // Best-effort cleanup — the document itself is already gone.
   }

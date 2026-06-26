@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
     "@hocuspocus/transformer",
     "crossws",
     "ws",
+    // Preview generation — heavy native/Cairo deps, avoid Turbopack bundling.
+    "pdfjs-dist",
+    "canvas",
+    "@react-pdf/renderer",
+    "@resvg/resvg-js",
   ],
   turbopack: {
     resolveAlias: {

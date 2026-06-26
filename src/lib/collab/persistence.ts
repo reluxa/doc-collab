@@ -251,6 +251,17 @@ export async function storeYDocSnapshot(id: string, doc: Y.Doc): Promise<void> {
     } catch {
       // Versioning is best-effort — never fail a persist because of it.
     }
+
+    // Generate a preview thumbnail after persist (fire-and-forget).
+    // Deliberately NOT awaited so it never blocks the Hocuspocus debounce.
+    void (async () => {
+      try {
+        const { generatePreview } = await import("../preview");
+        await generatePreview(id, md);
+      } catch {
+        // Best-effort — silently ignore
+      }
+    })();
   }
 
   const update = Y.encodeStateAsUpdate(doc);

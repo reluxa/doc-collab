@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getVersionCount } from "@/lib/collab/versioning-read";
+import { previewFileExists } from "@/lib/documents";
 import {
   BadRequestError,
   ConflictError,
@@ -37,11 +38,14 @@ function errorToResponse(err: unknown): Response {
 export async function GET(): Promise<Response> {
   try {
     const docs = await listDocumentsCached();
-    // Add version count to each document.
+    // Add version count and preview URL to each document.
     const docsWithCounts = await Promise.all(
       docs.map(async (doc) => ({
         ...doc,
         versionCount: await getVersionCount(doc.id),
+        previewUrl: (await previewFileExists(doc.id))
+          ? `/api/previews/${encodeURIComponent(doc.id)}`
+          : null,
       })),
     );
     return Response.json(docsWithCounts);
