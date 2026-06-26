@@ -75,26 +75,33 @@ export async function renderPreviewFromPdf(
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createCanvas } = require("canvas");
 
-  // Create a custom canvas factory for pdfjs
+  // pdfjs-dist 4.x expects CanvasFactory to be a class constructor,
+  // instantiated internally with `new CanvasFactory({ enableHWA })`.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const NodeCanvasFactory = class {
+  class NodeCanvasFactory {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    constructor(_: any) {
+      // pdfjs passes { enableHWA } but we ignore it
+    }
     create(width: number, height: number) {
       const canvas = createCanvas(width, height);
       const context = canvas.getContext("2d");
       return { canvas, context };
     }
-    destroy() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    destroy(_: any) {
       // node-canvas doesn't require explicit cleanup
     }
-  };
+  }
 
   // Load PDF with custom canvas factory (CanvasFactory in pdfjs 4.x)
   // pdfjs-dist 4.x requires Uint8Array, not Buffer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const loadingTask = getDocument({
     data: new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength),
+    // Pass the class itself, not an instance — pdfjs does `new CanvasFactory({...})`
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    CanvasFactory: new NodeCanvasFactory() as any,
+    CanvasFactory: NodeCanvasFactory as any,
   });
 
   const pdf = await loadingTask.promise;
