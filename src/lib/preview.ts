@@ -89,6 +89,11 @@ export async function renderPreviewFromPdf(
       return { canvas, context };
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reset(_: any, width: number, height: number) {
+      // pdfjs may call this to resize canvas — we ignore since we create
+      // fresh canvases per page. Required by BaseCanvasFactory interface.
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     destroy(_: any) {
       // node-canvas doesn't require explicit cleanup
     }
