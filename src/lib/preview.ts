@@ -54,18 +54,11 @@ async function initPdfjs(): Promise<typeof import("pdfjs-dist")> {
   pdfjsInitialized = true;
   const pdfjs = await import("pdfjs-dist");
 
-  // Configure pdfjs to use node-canvas as the canvas backend
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createCanvas } = require("canvas");
-
   pdfjs.GlobalWorkerOptions.workerPort = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (pdfjs as any).pdfjsVersion = "4.8.69";
-
-  // Set up node-canvas as the custom canvas factory
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (pdfjs as any).GlobalWorkerOptions.workerSrc =
-    "pdfjs-dist/build/pdf.worker.mjs";
+  pdfjs.GlobalWorkerOptions.workerSrc = `${path.resolve(
+    process.cwd(),
+    "node_modules/pdfjs-dist/build/pdf.worker.mjs",
+  )}`;
 
   return pdfjs;
 }
@@ -74,7 +67,7 @@ async function initPdfjs(): Promise<typeof import("pdfjs-dist")> {
  * Render a PDF buffer to a PNG using pdfjs-dist + node-canvas.
  */
 export async function renderPreviewFromPdf(
-  pdfBuffer: Buffer | Uint8Array,
+  pdfBuffer: Uint8Array,
   _scale = 2,
 ): Promise<Buffer> {
   const pdfjs = await initPdfjs();
@@ -96,9 +89,10 @@ export async function renderPreviewFromPdf(
   };
 
   // Load PDF with custom canvas factory (CanvasFactory in pdfjs 4.x)
+  // pdfjs-dist 4.x requires Uint8Array, not Buffer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const loadingTask = getDocument({
-    data: pdfBuffer as Uint8Array,
+    data: new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     CanvasFactory: new NodeCanvasFactory() as any,
   });
@@ -138,7 +132,7 @@ export async function generatePreview(
   try {
     const excerpt = extractPreviewContent(content);
     const pdfBuffer = await buildPreviewPdf(excerpt);
-    const pngBuffer = await renderPreviewFromPdf(Buffer.from(pdfBuffer));
+    const pngBuffer = await renderPreviewFromPdf(pdfBuffer);
 
     const previewDir = path.resolve(DOCS_ROOT, PREVIEW_DIR_NAME);
     await fs.mkdir(previewDir, { recursive: true });
