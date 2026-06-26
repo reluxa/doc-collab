@@ -9,9 +9,144 @@
  * before emitting bytes to the stream. For MVP document sizes this is
  * acceptable. True chunked-from-source streaming is not supported by the
  * library and is out of scope.
+ *
+ * Font note: The default PDF 14 fonts (Helvetica, Courier) only support
+ * WinAnsiEncoding (chars up to U+00FF). Characters like Hungarian ő/Ő/ű/Ű
+ * (Latin Extended-A/B) are missing and get replaced by a fallback glyph.
+ * We register DejaVu Sans which has broad Unicode coverage including
+ * Latin Extended-A, Latin Extended-B, and many other scripts.
  */
 
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import type { Root } from "mdast";
+
+// ---------------------------------------------------------------------------
+// Font management
+// ---------------------------------------------------------------------------
+
+const FONTS_DIR = path.resolve(process.cwd(), "fonts");
+const DEJAVU_ZIP_URL =
+  "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.zip";
+
+/**
+ * Ensure DejaVu Sans TTF files are available locally.
+ *
+ * Checks `fonts/` first. If missing, downloads the release zip from GitHub
+ * and extracts only the Regular and Bold faces. Once downloaded, the fonts
+ * are cached indefinitely.
+ *
+ * Returns `true` if fonts are available, `false` if download/extraction
+ * failed (caller should fall back gracefully).
+ */
+let fontsEnsured = false;
+
+async function ensureDejaVuFonts(): Promise<boolean> {
+  if (fontsEnsured) return true;
+
+  const requiredFonts = [
+    "DejaVuSans.ttf",
+    "DejaVuSans-Bold.ttf",
+    "DejaVuSans-Oblique.ttf",
+    "DejaVuSans-BoldOblique.ttf",
+  ];
+
+  // Already cached?
+  if (requiredFonts.every((f) => fs.existsSync(path.join(FONTS_DIR, f)))) {
+    fontsEnsured = true;
+    return true;
+  }
+
+  // Try common system paths before downloading
+  const systemBase = "/usr/share/fonts/truetype/dejavu";
+  if (requiredFonts.every((f) => fs.existsSync(path.join(systemBase, f)))) {
+    fontsEnsured = true;
+    return true;
+  }
+
+  // Download and extract from GitHub release
+  try {
+    fs.mkdirSync(FONTS_DIR, { recursive: true });
+    const zipPath = path.join(FONTS_DIR, "dejavu-fonts-ttf.zip");
+    console.log(`[pdf] Downloading DejaVu Sans fonts from ${DEJAVU_ZIP_URL} ...`);
+
+    // Use execSync with curl for simplicity (curl is available on most systems)
+    execSync(`curl -sL "${DEJAVU_ZIP_URL}" -o "${zipPath}"`, {
+      stdio: "pipe",
+      timeout: 30_000,
+    });
+
+    execSync(
+      `unzip -j -o "${zipPath}" "*/ttf/DejaVuSans.ttf" "*/ttf/DejaVuSans-Bold.ttf" "*/ttf/DejaVuSans-Oblique.ttf" "*/ttf/DejaVuSans-BoldOblique.ttf" -d "${FONTS_DIR}"`,
+      { stdio: "pipe", timeout: 15_000 },
+    );
+
+    // Clean up zip
+    fs.unlinkSync(zipPath);
+
+    if (
+      requiredFonts.every((f) => fs.existsSync(path.join(FONTS_DIR, f)))
+    ) {
+      fontsEnsured = true;
+      return true;
+    }
+    console.warn("[pdf] Font extraction completed but files not found");
+    return false;
+  } catch (err) {
+    console.warn("[pdf] Failed to download/extract DejaVu Sans fonts:", err);
+    return false;
+  }
+}
+
+/**
+ * Register DejaVu Sans fonts with @react-pdf/renderer.
+ *
+ * Falls back to system DejaVu path first (no copy needed), then to the
+ * locally cached `fonts/` directory if the download succeeded.
+ */
+let fontsRegistered = false;
+
+function registerDejaVuFont(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Font: any,
+): void {
+  if (fontsRegistered) return;
+
+  // Resolve font paths: prefer system DejaVu, fall back to local cache
+  function resolveFont(filename: string): string {
+    const sysPath = `/usr/share/fonts/truetype/dejavu/${filename}`;
+    const localPath = path.join(FONTS_DIR, filename);
+    return fs.existsSync(sysPath) ? sysPath : localPath;
+  }
+
+  const regularSrc = resolveFont("DejaVuSans.ttf");
+  const boldSrc = resolveFont("DejaVuSans-Bold.ttf");
+  const obliqueSrc = resolveFont("DejaVuSans-Oblique.ttf");
+  const boldObliqueSrc = resolveFont("DejaVuSans-BoldOblique.ttf");
+
+  const allExist = [regularSrc, boldSrc, obliqueSrc, boldObliqueSrc].every(
+    (src) => fs.existsSync(src),
+  );
+  if (!allExist) {
+    console.warn(
+      "[pdf] DejaVu Sans fonts not available — exotic accented characters may not render",
+    );
+    return;
+  }
+
+  Font.register({
+    family: "DejaVu Sans",
+    fonts: [
+      { src: regularSrc, fontWeight: "normal", fontStyle: "normal" },
+      { src: boldSrc, fontWeight: "bold", fontStyle: "normal" },
+      { src: obliqueSrc, fontWeight: "normal", fontStyle: "italic" },
+      { src: boldObliqueSrc, fontWeight: "bold", fontStyle: "italic" },
+    ],
+  });
+
+  fontsRegistered = true;
+}
 
 // ---------------------------------------------------------------------------
 // Dynamic import of @react-pdf/renderer (ESM-only package)
@@ -47,7 +182,7 @@ async function getStyles(
       paddingBottom: 65,
       paddingHorizontal: 40,
       fontSize: 11,
-      fontFamily: "Helvetica",
+      fontFamily: "DejaVu Sans",
       color: "#0F172A",
       lineHeight: 1.6,
     } as React.CSSProperties,
@@ -323,6 +458,10 @@ function registerEmojiSource(
  * built in memory before bytes are emitted. For MVP document sizes this is
  * acceptable.
  *
+ * Registers a Unicode-capable font (DejaVu Sans) so that accented characters
+ * (e.g. Hungarian ő/Ő/ű/Ű, Romanian ă/ș/ț) render correctly instead of being
+ * replaced by a missing-glyph fallback.
+ *
  * @param tree - mdast `Root` node (from `parseMarkdown` in `lib/markdown.ts`)
  * @returns PDF bytes as a `Uint8Array`
  */
@@ -330,9 +469,14 @@ export async function renderMarkdownToPdf(tree: Root): Promise<Uint8Array> {
   const rpm = await loadReactPdf();
   const styles = await getStyles(rpm);
 
-  // Register emoji source so emoji code points render as Twemoji SVG images
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Font: any = rpm.Font;
+
+  // Ensure DejaVu Sans fonts are available for Unicode coverage.
+  await ensureDejaVuFonts();
+  registerDejaVuFont(Font);
+
+  // Register emoji source so emoji code points render as Twemoji SVG images
   registerEmojiSource(Font);
 
   const cmp = {

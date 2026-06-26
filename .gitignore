@@ -19,6 +19,9 @@ build/
 # Version snapshots (auto-generated)
 /__versions__/
 
+# Downloaded font files (DejaVu Sans for PDF Unicode support)
+/fonts/
+
 # Tests
 cypress/screenshots/
 cypress/videos/

@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 import { parseMarkdown } from "../src/lib/markdown";
@@ -153,6 +154,98 @@ This document contains emojis: 4
     // data per unique emoji). We have 6 unique emojis here, each SVG is
     // roughly 500-800 bytes → expect at least 1000 bytes difference.
     expect(pdf.byteLength).toBeGreaterThan(pdfNoEmoji.byteLength + 1000);
+  });
+
+  /**
+   * Decompress all FlateDecode streams in a PDF and return the decoded text.
+   * Used to verify PDF text content without external tools.
+   */
+  function decompressPdfStreams(pdf: Uint8Array): string[] {
+    // Use latin1 (binary) encoding to avoid UTF-8 corruption of binary PDF data
+    const pdfStr = new TextDecoder("latin1").decode(pdf);
+    const streams: string[] = [];
+    let idx = 0;
+    while ((idx = pdfStr.indexOf("stream", idx)) !== -1) {
+      const endStream = pdfStr.indexOf("endstream", idx);
+      if (endStream === -1) break;
+      let dataStart = idx + 6;
+      while (
+        dataStart < endStream &&
+        (pdfStr[dataStart] === "\r" || pdfStr[dataStart] === "\n")
+      )
+        dataStart++;
+      const rawData = pdf.subarray(dataStart, endStream);
+      try {
+        const decompressed = zlib.inflateSync(rawData);
+        // latin1 preserves the binary content 1:1
+        streams.push(decompressed.toString("binary"));
+      } catch {
+        // skip streams that aren't FlateDecode
+      }
+      idx = endStream + 9;
+    }
+    return streams;
+  }
+
+  /**
+   * Extract Unicode code points from ToUnicode CMap beginbfchar entries.
+   * Returns a Set of Unicode code points found in any CMap.
+   */
+  function extractToUnicodeCodepoints(streams: string[]): Set<number> {
+    const codepoints = new Set<number>();
+    for (const text of streams) {
+      if (!text.includes("beginbfchar")) continue;
+      const lines = text.split("\n");
+      const re = /<([0-9a-fA-F]+)><([0-9a-fA-F]+)>/;
+      for (const line of lines) {
+        const m = line.match(re);
+        if (m) {
+          const unicode = parseInt(m[2], 16);
+          if (unicode > 0) codepoints.add(unicode);
+        }
+      }
+    }
+    return codepoints;
+  }
+
+  it("renders Hungarian accented characters (U+0150/U+0151, U+0170/U+0171) correctly", async () => {
+    const md = [
+      "# Magyar Szöveg",
+      "",
+      "Ez a szöveg tartalmaz magyar ékezetes betűket:",
+      "",
+      "- ő (U+0151) és Ő (U+0150) — o kettős ékezet",
+      "- ű (U+0171) és Ű (U+0170) — u kettős ékezet",
+      "- á é í ó ú ö ü ő ű — teljes magyar ábécé",
+    ].join("\n");
+
+    const tree = parseMarkdown(md);
+    const pdf = await renderMarkdownToPdf(tree);
+
+    const header = new TextDecoder().decode(pdf.slice(0, 5));
+    expect(header).toBe("%PDF-");
+
+    // Decompress PDF streams and extract ToUnicode CMap entries.
+    // With a custom Unicode font, @react-pdf/renderer stores a ToUnicode
+    // CMap mapping character IDs (CIDs) to Unicode code points. We verify
+    // that the Hungarian characters appear in this mapping.
+    const streams = decompressPdfStreams(pdf);
+    const cps = extractToUnicodeCodepoints(streams);
+
+    // Hungarian double-acute characters (Latin Extended-A)
+    expect(cps.has(0x0151)).toBe(true); // ő  (o with double acute)
+    expect(cps.has(0x0150)).toBe(true); // Ő  (O with double acute)
+    expect(cps.has(0x0171)).toBe(true); // ű  (u with double acute)
+    expect(cps.has(0x0170)).toBe(true); // Ű  (U with double acute)
+
+    // Common Hungarian accented chars (Latin-1 supplement)
+    expect(cps.has(0x00E1)).toBe(true); // á
+    expect(cps.has(0x00E9)).toBe(true); // é
+    expect(cps.has(0x00ED)).toBe(true); // í
+    expect(cps.has(0x00F3)).toBe(true); // ó
+    expect(cps.has(0x00FA)).toBe(true); // ú
+    expect(cps.has(0x00F6)).toBe(true); // ö
+    expect(cps.has(0x00FC)).toBe(true); // ü
   });
 
   it("table roundtrip: markdown \u2192 PDF \u2192 markdown preserves tabular format via @pspdfkit/pdf-to-markdown", async () => {
