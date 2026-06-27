@@ -91,7 +91,9 @@ export function useDocumentSave({
     }
 
     const storage = editor.storage as unknown as Record<string, unknown>;
-    const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+    const mdStorage = storage.markdown as { getMarkdown: () => string } | undefined;
+    if (!mdStorage) return;
+    const markdown = mdStorage.getMarkdown();
 
     if (markdown === currentContentRef.current && saveStatus.state === "saved") {
       return;
@@ -256,7 +258,9 @@ export function useDocumentSave({
     lastLocalEditRef.current = Date.now();
 
     const storage = ed.storage as unknown as Record<string, unknown>;
-    const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+    const mdStorage = storage.markdown as { getMarkdown: () => string } | undefined;
+    if (!mdStorage) return;
+    const markdown = mdStorage.getMarkdown();
 
     const prevContent = currentContentRef.current;
     if (markdown !== prevContent) {
@@ -298,8 +302,9 @@ export function useDocumentSave({
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       const editor = editorRef.current;
       const storage = editor?.storage as unknown as Record<string, unknown>;
-      if (storage && dirty) {
-        const markdown = (storage.markdown as { getMarkdown: () => string }).getMarkdown();
+      const mdStorage = storage?.markdown as { getMarkdown: () => string } | undefined;
+      if (mdStorage && dirty) {
+        const markdown = mdStorage.getMarkdown();
         const data = JSON.stringify({ content: markdown, ifMatch: etagRef.current });
         navigator.sendBeacon(`/api/documents/${documentId}`, data);
       }
