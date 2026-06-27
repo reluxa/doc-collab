@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { DocumentMeta } from "@/types/document";
-
 function PreviewImage({
   previewUrl,
   title,
@@ -25,7 +24,7 @@ function PreviewImage({
       loading="lazy"
       decoding="async"
       onError={onError}
-      className="h-full w-full object-cover object-top transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:scale-[1.03]"
+      className="preview-img h-full w-full object-cover object-top transition-transform duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:scale-[1.03]"
     />
   );
 }
@@ -73,6 +72,8 @@ function PlaceholderPreview() {
     </div>
   );
 }
+
+
 
 export function DocumentList({
   onCreate,
@@ -186,6 +187,12 @@ export function DocumentList({
 
   return (
     <>
+      {/* Invert preview thumbnails when dark theme is active (white PDF bg → dark paper) */}
+      <style>{`
+        [data-theme="dark"] .preview-img {
+          filter: invert(.9) hue-rotate(180deg);
+        }
+      `}</style>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {docs.map((doc, i) => {
           const hasPreview =
