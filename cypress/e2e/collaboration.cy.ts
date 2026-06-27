@@ -30,6 +30,7 @@ describe("Collaborative editing", () => {
       method: "POST",
       url: "/api/documents",
       body: { id: COLLAB_DOC_ID, content: "" },
+      failOnStatusCode: false,
     });
   });
 
