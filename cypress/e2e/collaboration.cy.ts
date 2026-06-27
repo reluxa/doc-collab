@@ -128,7 +128,8 @@ describe("Collaborative editing", () => {
 
     cy.get(".ProseMirror", { timeout: 10_000 }).should("contain.text", sectionBBody);
 
-    cy.contains(".ProseMirror", sectionBBody).click();
+    // Click directly on section B's <p> so the cursor lands inside that paragraph.
+    cy.get(".ProseMirror").contains("p", sectionBBody).click();
     cy.get(".ProseMirror").type(" edited-in-browser");
 
     // Wait for the typed text to be fully settled in the CRDT before
