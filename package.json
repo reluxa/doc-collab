@@ -6,7 +6,8 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "tsx watch --exclude '.next/**' --exclude 'documents/**' server.ts --dev",
+    "dev": "tsx watch --exclude '.next/**' --exclude 'documents/**' --exclude 'node_modules/**' --exclude '.git/**' --exclude 'dist/**' server.ts --dev",
+    "dev:webpack": "DEV_WEBPACK=true tsx watch --exclude '.next/**' --exclude 'documents/**' --exclude 'node_modules/**' --exclude '.git/**' --exclude 'dist/**' server.ts --dev",
     "dev:mcp": "tsx watch mcp-server/server.ts",
     "dev:all": "concurrently -n web,mcp -c blue,magenta \"npm:dev\" \"npm:dev:mcp\"",
     "build": "next build && npm run build:server && npm run build:mcp",
