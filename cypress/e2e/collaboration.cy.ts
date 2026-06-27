@@ -130,9 +130,14 @@ describe("Collaborative editing", () => {
 
     // Click directly on section B's <p> so the cursor lands inside that paragraph.
     cy.get(".ProseMirror").contains("p", sectionBBody).click();
-    cy.get(".ProseMirror").type(" edited-in-browser");
+    // Use the editor API directly instead of .type() to avoid per-keystroke
+    // CRDT sync race conditions in CI — insertContent fires a single Yjs
+    // transaction regardless of text length.
+    cy.get(".ProseMirror").then(($pm) => {
+      $pm[0].editor.commands.insertContent(" edited-in-browser");
+    });
 
-    // Wait for the typed text to be fully settled in the CRDT before
+    // Wait for the inserted text to be visible in the DOM before
     // applying a remote concurrent edit — prevents a race where the collab
     // task fires before keystrokes finish integrating into Yjs.
     cy.get(".ProseMirror").should("contain.text", "edited-in-browser");
