@@ -29,7 +29,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const { id } = await params;
+    const id = decodeURIComponent((await params).id);
     const versions = await listVersions(id);
     return Response.json(versions);
   } catch (err: unknown) {
@@ -46,7 +46,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const { id } = await params;
+    const id = decodeURIComponent((await params).id);
 
     const doc = await readDocument(id);
 

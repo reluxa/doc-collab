@@ -33,7 +33,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string; version: string }> },
 ): Promise<Response> {
   try {
-    const { id, version } = await params;
+    const { version } = await params;
+    const id = decodeURIComponent((await params).id);
     const versionNum = VersionParamSchema.parse(version);
     const record = await readVersion(id, versionNum);
     return Response.json(record);

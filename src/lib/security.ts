@@ -46,14 +46,18 @@ export const PREVIEW_DIR_NAME = "__previews__";
  * @throws ForbiddenError   if the resolved path escapes DOCS_ROOT
  */
 export function resolveDocPath(id: string): string {
-  if (!ID_PATTERN.test(id)) {
-    throw new BadRequestError(`Invalid document id: "${id}"`);
+  // URL-decode the id in case the router preserved encoding (e.g. %3A → :).
+  // This is a no-op for already-decoded ids.
+  const decoded = decodeURIComponent(id);
+  if (!ID_PATTERN.test(decoded)) {
+    throw new BadRequestError(`Invalid document id: "${decoded}"`);
   }
-  if (id.length > 128) {
-    throw new BadRequestError(`Invalid document id: "${id}"`);
+  if (decoded.length > 128) {
+    throw new BadRequestError(`Invalid document id: "${decoded}"`);
   }
 
-  const target = path.resolve(DOCS_ROOT, `${id}.md`);
+  // XXX: file path uses decoded version to match on-disk naming.
+  const target = path.resolve(DOCS_ROOT, `${decoded}.md`);
 
   // Defense in depth: verify the resolved path is still under DOCS_ROOT.
   const rel = path.relative(DOCS_ROOT, target);
@@ -75,14 +79,15 @@ export function resolveDocPath(id: string): string {
  * @throws ForbiddenError   if the resolved path escapes DOCS_ROOT
  */
 export function resolvePreviewPath(id: string): string {
-  if (!ID_PATTERN.test(id)) {
-    throw new BadRequestError(`Invalid document id: "${id}"`);
+  const decoded = decodeURIComponent(id);
+  if (!ID_PATTERN.test(decoded)) {
+    throw new BadRequestError(`Invalid document id: "${decoded}"`);
   }
-  if (id.length > 128) {
-    throw new BadRequestError(`Invalid document id: "${id}"`);
+  if (decoded.length > 128) {
+    throw new BadRequestError(`Invalid document id: "${decoded}"`);
   }
 
-  const target = path.resolve(DOCS_ROOT, PREVIEW_DIR_NAME, `${id}.png`);
+  const target = path.resolve(DOCS_ROOT, PREVIEW_DIR_NAME, `${decoded}.png`);
 
   // Defense in depth: verify the resolved path is still under DOCS_ROOT.
   const rel = path.relative(DOCS_ROOT, target);

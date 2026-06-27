@@ -33,7 +33,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const { id } = await params;
+    const id = decodeURIComponent((await params).id);
     const doc = await readDocument(id);
     return Response.json(doc, {
       headers: { "ETag": doc.etag },
@@ -49,7 +49,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   // Resolve id once (Next.js 16: params are async).
-  const { id } = await params;
+  const id = decodeURIComponent((await params).id);
 
   try {
     const ifMatch = request.headers.get("If-Match");
@@ -94,7 +94,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const { id } = await params;
+    const id = decodeURIComponent((await params).id);
     await deleteDocument(id);
     return new Response(null, { status: 204 });
   } catch (err: unknown) {

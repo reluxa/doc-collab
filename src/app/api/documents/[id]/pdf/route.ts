@@ -35,7 +35,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const { id } = await params;
+    const id = decodeURIComponent((await params).id);
     const sectionId = request.nextUrl.searchParams.get("section") ?? undefined;
 
     const doc = await readDocument(id);

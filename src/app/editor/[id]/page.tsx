@@ -14,7 +14,8 @@ async function fetchDocument(id: string): Promise<DocumentContent | null> {
 }
 
 export default async function EditorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = decodeURIComponent(rawId);
   const doc = await fetchDocument(id);
 
   if (!doc) {
