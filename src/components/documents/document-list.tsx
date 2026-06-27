@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { DocumentMeta } from "@/types/document";
-function PreviewImage({
-  previewUrl,
+
+function PreviewImage({  previewUrl,
   title,
   onError,
 }: {
@@ -86,6 +86,8 @@ export function DocumentList({
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [erroredPreviews, setErroredPreviews] = useState<Set<string>>(new Set());
+  /** Track which folder sections are collapsed. */
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const mounted = useRef(false);
 
   const handleImageError = useCallback((id: string) => {
@@ -131,6 +133,112 @@ export function DocumentList({
     const days = Math.floor(hrs / 24);
     if (days < 7) return `${days}d ago`;
     return d.toLocaleDateString();
+  }
+
+  const toggleFolder = useCallback((folder: string) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }, []);
+
+  /** Format a folder path (":"-separated) into a breadcrumb label. */
+  function folderLabel(folder: string): string {
+    return folder.split(":").join(" > ");
+  }
+
+  /** Render a single document card. */
+  function renderCard(doc: DocumentMeta, i: number) {
+    const hasPreview = doc.previewUrl && !erroredPreviews.has(doc.id);
+
+    return (
+      <Link
+        key={doc.id}
+        href={`/editor/${doc.id}`}
+        style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
+        className="group animate-fade-up relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[var(--shadow-e1)] transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[0_12px_28px_-8px_rgba(99,102,241,.30)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
+      >
+        {/* Preview area — full-bleed at top, 4:3 aspect ratio */}
+        <div className="relative aspect-[4/3] w-full overflow-hidden">
+          {/* Inset hairline in light mode */}
+          <div className="pointer-events-none absolute inset-0 z-10 rounded-t-lg ring-1 ring-inset ring-black/[.06] dark:ring-0" />
+
+          <PreviewImage
+            previewUrl={hasPreview ? doc.previewUrl : null}
+            title={doc.title}
+            onError={() => handleImageError(doc.id)}
+          />
+        </div>
+
+        {/* Brand seam at the base of the preview */}
+        <div className="h-[2px] w-full bg-gradient-to-r from-brand-500 to-brand-300 opacity-60 transition-opacity duration-200 group-hover:opacity-100" />
+
+        {/* Card body — no icon tile, just title + meta */}
+        <div className="flex flex-1 flex-col p-5 pt-4">
+          <h3 className="truncate text-base font-semibold leading-tight text-text group-hover:text-brand-600">
+            {doc.title}
+          </h3>
+
+          {/* Divider */}
+          <div className="mt-4 h-px bg-border" />
+
+          {/* Meta row */}
+          <div className="mt-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-text-subtle">
+              <div className="flex items-center gap-1.5">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {formatModified(doc.modifiedAt as unknown as string)}
+              </div>
+              {doc.versionCount && doc.versionCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
+                  v{doc.versionCount}
+                </span>
+              )}
+            </div>
+            {/* Delete button — visible on hover */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmDelete(doc.id);
+              }}
+              className="rounded-md p-1.5 text-text-subtle opacity-0 transition-all duration-200 hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
+              aria-label={`Delete ${doc.title}`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </Link>
+    );
   }
 
   if (loading) {
@@ -193,98 +301,88 @@ export function DocumentList({
           filter: invert(.9) hue-rotate(180deg);
         }
       `}</style>
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {docs.map((doc, i) => {
-          const hasPreview =
-            doc.previewUrl && !erroredPreviews.has(doc.id);
-
+      <div className="space-y-8">
+        {/* Root documents (no folder) */}
+        {(() => {
+          const rootDocs = docs.filter((d) => !d.folder);
+          if (rootDocs.length === 0) return null;
           return (
-            <Link
-              key={doc.id}
-              href={`/editor/${doc.id}`}
-              style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
-              className="group animate-fade-up relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-[var(--shadow-e1)] transition-all duration-200 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-300/60 hover:shadow-[0_12px_28px_-8px_rgba(99,102,241,.30)] focus-visible:ring-2 focus-visible:ring-brand-500/35 focus-visible:ring-offset-2"
-            >
-              {/* Preview area — full-bleed at top, 4:3 aspect ratio */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden">
-                {/* Inset hairline in light mode */}
-                <div className="pointer-events-none absolute inset-0 z-10 rounded-t-lg ring-1 ring-inset ring-black/[.06] dark:ring-0" />
-
-                <PreviewImage
-                  previewUrl={hasPreview ? doc.previewUrl : null}
-                  title={doc.title}
-                  onError={() => handleImageError(doc.id)}
-                />
+            <>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {rootDocs.map((doc, i) => renderCard(doc, i))}
               </div>
-
-              {/* Brand seam at the base of the preview */}
-              <div className="h-[2px] w-full bg-gradient-to-r from-brand-500 to-brand-300 opacity-60 transition-opacity duration-200 group-hover:opacity-100" />
-
-              {/* Card body — no icon tile, just title + meta */}
-              <div className="flex flex-1 flex-col p-5 pt-4">
-                <h3 className="truncate text-base font-semibold leading-tight text-text group-hover:text-brand-600">
-                  {doc.title}
-                </h3>
-
-                {/* Divider */}
-                <div className="mt-4 h-px bg-border" />
-
-                {/* Meta row */}
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-text-subtle">
-                    <div className="flex items-center gap-1.5">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <polyline points="12 6 12 12 16 14" />
-                      </svg>
-                      {formatModified(doc.modifiedAt as unknown as string)}
-                    </div>
-                    {doc.versionCount && doc.versionCount > 0 && (
-                      <span className="inline-flex items-center rounded-full bg-brand-50 px-1.5 py-0.5 text-xs font-medium text-brand-700">
-                        v{doc.versionCount}
-                      </span>
-                    )}
-                  </div>
-                  {/* Delete button — visible on hover */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setConfirmDelete(doc.id);
-                    }}
-                    className="rounded-md p-1.5 text-text-subtle opacity-0 transition-all duration-200 hover:bg-danger/10 hover:text-danger group-hover:opacity-100"
-                    aria-label={`Delete ${doc.title}`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </Link>
+            </>
           );
-        })}
+        })()}
+
+        {/* Folder sections */}
+        {(() => {
+          const folders = [...new Set(docs.map((d) => d.folder).filter(Boolean) as string[])];
+          folders.sort();
+          return folders.map((folder) => {
+            const folderDocs = docs.filter((d) => d.folder === folder);
+            const isCollapsed = collapsedFolders.has(folder);
+            return (
+              <div key={folder}>
+                {/* Folder header */}
+                <button
+                  type="button"
+                  onClick={() => toggleFolder(folder)}
+                  className="group flex w-full items-center gap-2 text-left"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 text-text-muted"
+                  >
+                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-text group-hover:text-brand-600">
+                    {folderLabel(folder)}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-surface-2 px-1.5 py-0.5 text-xs font-medium text-text-muted">
+                    {folderDocs.length}
+                  </span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`ml-auto shrink-0 text-text-muted transition-transform duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
+                      isCollapsed ? "-rotate-90" : "rotate-0"
+                    }`}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {/* Folder cards */}
+                {!isCollapsed && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {folderDocs.map((doc, i) => renderCard(doc, i))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section separator */}
+                <div className="mt-6 h-px bg-border" />
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {confirmDelete && (

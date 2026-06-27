@@ -5,9 +5,32 @@ import { BadRequestError, ForbiddenError } from "./errors";
 
 /**
  * Allowed document ID pattern.
- * Letters, digits, hyphens, underscores. 1–128 characters.
+ * Segments of [A-Za-z0-9_-] separated by ':'. No empty segments, max 256 chars.
+ * e.g. "note", "meetings:note", "meetings:2024:q1:note"
  */
-export const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+export const ID_PATTERN = /^[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)*$/;
+
+/**
+ * Extract the folder path (":"-separated prefix) from a document id.
+ * "meetings:2024:note" → "meetings:2024"
+ * "plain-doc" → null
+ */
+export function documentFolderPath(id: string): string | null {
+  const lastColon = id.lastIndexOf(':');
+  if (lastColon === -1) return null;
+  return id.slice(0, lastColon);
+}
+
+/**
+ * Extract folder segments from a document id.
+ * "meetings:2024:note" → ["meetings", "2024"]
+ * "plain-doc" → []
+ */
+export function documentFolderParts(id: string): string[] {
+  const lastColon = id.lastIndexOf(':');
+  if (lastColon === -1) return [];
+  return id.slice(0, lastColon).split(':');
+}
 
 /** Subdirectory for preview thumbnails inside DOCS_ROOT. */
 export const PREVIEW_DIR_NAME = "__previews__";
@@ -24,6 +47,9 @@ export const PREVIEW_DIR_NAME = "__previews__";
  */
 export function resolveDocPath(id: string): string {
   if (!ID_PATTERN.test(id)) {
+    throw new BadRequestError(`Invalid document id: "${id}"`);
+  }
+  if (id.length > 128) {
     throw new BadRequestError(`Invalid document id: "${id}"`);
   }
 
@@ -50,6 +76,9 @@ export function resolveDocPath(id: string): string {
  */
 export function resolvePreviewPath(id: string): string {
   if (!ID_PATTERN.test(id)) {
+    throw new BadRequestError(`Invalid document id: "${id}"`);
+  }
+  if (id.length > 128) {
     throw new BadRequestError(`Invalid document id: "${id}"`);
   }
 

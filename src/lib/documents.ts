@@ -11,6 +11,7 @@ import {
 } from "./errors";
 import { markApiWrite } from "./api-write-echo";
 import { resolveDocPath } from "./security";
+import { documentFolderPath } from "./security";
 import type { DocumentContent, DocumentId, DocumentMeta } from "../types/document";
 
 // Re-export typed errors so consumers (API, MCP) don't import errors.ts directly.
@@ -142,6 +143,7 @@ export async function listDocuments(): Promise<DocumentMeta[]> {
       title,
       modifiedAt: stats.mtime,
       previewUrl: null,
+      folder: documentFolderPath(id),
     });
   }
 

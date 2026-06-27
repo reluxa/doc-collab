@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { DocumentList } from "@/components/documents/document-list";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/components/ui/theme-provider";
@@ -9,20 +9,40 @@ import { useToast } from "@/components/ui/toast";
 export default function HomePage() {
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [newDocId, setNewDocId] = useState("");
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [showFolderList, setShowFolderList] = useState(false);
   const [creating, setCreating] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
 
+  /** Fetch existing folders from the document list. */
+  const [existingFolders, setExistingFolders] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!showNewDoc) return;
+    fetch("/api/documents")
+      .then((r) => r.json())
+      .then((docs: { folder: string | null }[]) => {
+        const folders = [...new Set(docs.map((d) => d.folder).filter(Boolean) as string[])];
+        folders.sort();
+        setExistingFolders(folders);
+      })
+      .catch(() => {});
+  }, [showNewDoc]);
+
   const handleCreate = useCallback(async () => {
-    const id = newDocId.trim().replace(/\s+/g, "-").toLowerCase();
-    if (!id) return;
+    const name = newDocId.trim().replace(/\s+/g, "-").toLowerCase();
+    if (!name) return;
+
+    // Construct full id with optional folder prefix
+    const id = selectedFolder ? `${selectedFolder}:${name}` : name;
 
     setCreating(true);
     try {
       const res = await fetch("/api/documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, content: `# ${id.replace(/-/g, " ")}\n` }),
+        body: JSON.stringify({ id, content: `# ${name.replace(/-/g, " ")}\n` }),
       });
 
       if (!res.ok) {
@@ -33,6 +53,7 @@ export default function HomePage() {
 
       showToast("success", "Document created");
       setNewDocId("");
+      setSelectedFolder(null);
       setShowNewDoc(false);
       // Force a re-render by navigating to the new doc
       window.location.href = `/editor/${id}`;
@@ -97,13 +118,127 @@ export default function HomePage() {
         >
           <div className="animate-fade-up w-full max-w-[480px] rounded-lg border border-border bg-surface p-6 shadow-[0_20px_48px_rgba(15,23,42,.24)]">
             <h2 className="text-lg font-semibold text-text">New document</h2>
-            <p className="mt-1 text-sm text-text-muted">Enter a name for your document.</p>
+            <p className="mt-1 text-sm text-text-muted">Choose a folder and enter a name for your document.</p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleCreate();
               }}
             >
+              {/* Folder picker */}
+              <div className="mt-4">
+                <label htmlFor="doc-folder" className="mb-1 block text-sm font-medium text-text">
+                  Folder
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    id="doc-folder"
+                    onClick={() => setShowFolderList((p) => !p)}
+                    className="flex w-full items-center justify-between rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/35"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0 text-text-muted"
+                      >
+                        <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                      </svg>
+                      {selectedFolder ? selectedFolder.split(":").join(" > ") : "Root"}
+                    </span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className={`shrink-0 text-text-muted transition-transform duration-200 ${
+                        showFolderList ? "rotate-180" : ""
+                      }`}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+
+                  {/* Folder dropdown */}
+                  {showFolderList && (
+                    <div className="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-surface shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFolder(null);
+                          setShowFolderList(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-surface-2 ${
+                          !selectedFolder ? "bg-surface-2 text-brand-600 font-medium" : "text-text"
+                        }`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="shrink-0 text-text-muted"
+                        >
+                          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                        </svg>
+                        Root
+                      </button>
+                      {existingFolders.map((folder) => (
+                        <button
+                          key={folder}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFolder(folder);
+                            setShowFolderList(false);
+                          }}
+                          className={`flex w-full items-center gap-2 px-3 py-2 text-sm text-left transition-colors hover:bg-surface-2 ${
+                            selectedFolder === folder ? "bg-surface-2 text-brand-600 font-medium" : "text-text"
+                          }`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="shrink-0 text-text-muted"
+                          >
+                            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                          </svg>
+                          {folder.split(":").join(" > ")}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-text-subtle">
+                  Documents are stored flat. Folders organize your dashboard view.
+                </p>
+              </div>
+
+              {/* Document name input */}
               <div className="mt-4">
                 <label htmlFor="doc-name" className="mb-1 block text-sm font-medium text-text">
                   Document name

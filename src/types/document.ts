@@ -14,6 +14,8 @@ export interface DocumentMeta {
   versionCount?: number;
   /** URL path to the preview PNG image, or null if none exists yet. */
   previewUrl: string | null;
+  /** Folder path (":"-separated prefix), or null for root. */
+  folder: string | null;
 }
 
 /** Document content returned by the read endpoint. */
