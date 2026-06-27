@@ -131,6 +131,11 @@ describe("Collaborative editing", () => {
     cy.contains(".ProseMirror", sectionBBody).click();
     cy.get(".ProseMirror").type(" edited-in-browser");
 
+    // Wait for the typed text to be fully settled in the CRDT before
+    // applying a remote concurrent edit — prevents a race where the collab
+    // task fires before keystrokes finish integrating into Yjs.
+    cy.get(".ProseMirror").should("contain.text", "edited-in-browser");
+
     cy.task("collabReplaceParagraphAt", {
       documentId: COLLAB_DOC_ID,
       paragraphIndex: 0,
